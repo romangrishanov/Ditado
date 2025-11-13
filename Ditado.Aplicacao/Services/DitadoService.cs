@@ -160,26 +160,76 @@ public class DitadoService
 
 		foreach (Match match in regex.Matches(texto))
 		{
-			if (match.Index > ultimoIndice)
+			// Extrai o conteúdo dentro dos colchetes (pode ter espaços/pontuação)
+			var conteudoBruto = match.Groups[1].Value;
+
+			// Separa palavra limpa de prefixo/sufixo (espaços e pontuação)
+			var (prefixo, palavraLimpa, sufixo) = ExtrairPalavraComContexto(conteudoBruto);
+
+			// Adiciona texto ANTES da lacuna (incluindo o que estava antes dos colchetes + prefixo)
+			var textoAntes = texto.Substring(ultimoIndice, match.Index - ultimoIndice) + prefixo;
+
+			if (!string.IsNullOrEmpty(textoAntes))
 			{
 				segmentos.Add(new DitadoSegmento
 				{
 					Ordem = ordem++,
 					Tipo = TipoSegmento.Texto,
-					Conteudo = texto.Substring(ultimoIndice, match.Index - ultimoIndice)
+					Conteudo = textoAntes
 				});
 			}
 
+			// Adiciona a LACUNA com apenas a palavra limpa (preserva maiúscula/minúscula original)
 			segmentos.Add(new DitadoSegmento
 			{
 				Ordem = ordem++,
 				Tipo = TipoSegmento.Lacuna,
-				Conteudo = match.Groups[1].Value
+				Conteudo = palavraLimpa
 			});
 
+			// Atualiza índice
 			ultimoIndice = match.Index + match.Length;
+
+			// Se tem sufixo, ele será o início do próximo segmento de texto
+			if (!string.IsNullOrEmpty(sufixo))
+			{
+				// Guarda o sufixo para concatenar com o próximo texto
+				var proximoTextoInicio = ultimoIndice;
+				var proximoTextoFim = ultimoIndice < texto.Length ?
+					(regex.Match(texto, ultimoIndice).Success ? regex.Match(texto, ultimoIndice).Index : texto.Length)
+					: texto.Length;
+
+				var proximoTexto = proximoTextoInicio < proximoTextoFim ?
+					texto.Substring(proximoTextoInicio, proximoTextoFim - proximoTextoInicio) : string.Empty;
+
+				var textoComSufixo = sufixo + proximoTexto;
+
+				if (!string.IsNullOrEmpty(textoComSufixo) && proximoTextoInicio < texto.Length)
+				{
+					segmentos.Add(new DitadoSegmento
+					{
+						Ordem = ordem++,
+						Tipo = TipoSegmento.Texto,
+						Conteudo = textoComSufixo
+					});
+
+					// Atualiza índice para pular o texto já processado
+					ultimoIndice = proximoTextoFim;
+				}
+				else if (!string.IsNullOrEmpty(sufixo))
+				{
+					// Apenas sufixo, sem texto adicional
+					segmentos.Add(new DitadoSegmento
+					{
+						Ordem = ordem++,
+						Tipo = TipoSegmento.Texto,
+						Conteudo = sufixo
+					});
+				}
+			}
 		}
 
+		// Adiciona texto restante após a última lacuna
 		if (ultimoIndice < texto.Length)
 		{
 			segmentos.Add(new DitadoSegmento
@@ -193,6 +243,35 @@ public class DitadoService
 		return segmentos;
 	}
 
+	/// <summary>
+	/// Extrai a palavra limpa e separa prefixo/sufixo (espaços e pontuação).
+	/// Preserva a capitalização original da palavra.
+	/// Exemplo: ", Gato. " > (", ", "Gato", ". ")
+	/// </summary>
+	private (string prefixo, string palavra, string sufixo) ExtrairPalavraComContexto(string conteudo)
+	{
+		// Regex que captura: (prefixo) (palavra) (sufixo)
+		// Prefixo: espaços e pontuação (incluindo ponto) no início
+		// Palavra: letras (com acentos), números, apóstrofo e hífen
+		// Sufixo: espaços e pontuação (incluindo ponto) no fim
+		var match = Regex.Match(
+			conteudo,
+			@"^([\s,\.;:!?\-—'""«»]*)([a-zA-ZáàâãäéèêëíìîïóòôõöúùûüçÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇ'\-]+)([\s,\.;:!?\-—'""«»]*)$"
+		);
+
+		if (match.Success)
+		{
+			return (match.Groups[1].Value, match.Groups[2].Value, match.Groups[3].Value);
+		}
+
+		// Fallback: Se não conseguiu fazer match, tenta pelo menos separar espaços
+		var trimmed = conteudo.Trim();
+		var prefixoEspacos = conteudo.Substring(0, conteudo.IndexOf(trimmed[0]));
+		var sufixoEspacos = conteudo.Substring(conteudo.LastIndexOf(trimmed[^1]) + 1);
+
+		return (prefixoEspacos, trimmed, sufixoEspacos);
+	}
+
 	private byte[] ExtrairAudioDeBase64(string audioBase64)
 	{
 		var base64Data = audioBase64.Contains(",") ? audioBase64.Split(',')[1] : audioBase64;
@@ -201,6 +280,7 @@ public class DitadoService
 
 	private string NormalizarTexto(string texto)
 	{
+		// ignora maiúsculas/minúsculas
 		return texto.Trim().ToLowerInvariant();
 	}
 
@@ -234,16 +314,14 @@ public class DitadoService
 		}
 
 		// 4. Diferença de comprimento pode ser omissão OU ortográfico
-		// Vamos usar distância de Levenshtein simplificada:
-		// Se a diferença é pequena (1-2 chars) e as palavras são similares, é ortográfico
 		var diferencaComprimento = Math.Abs(respostaNorm.Length - esperadoNorm.Length);
-		
+
 		if (diferencaComprimento <= 2)
 		{
 			// Verifica similaridade: quantos caracteres em comum?
 			var caracteresComuns = respostaNorm.Intersect(esperadoNorm).Count();
 			var tamanhoMenor = Math.Min(respostaNorm.Length, esperadoNorm.Length);
-			
+
 			// Se mais de 70% dos caracteres são comuns, é ortográfico
 			if (tamanhoMenor > 0 && (double)caracteresComuns / tamanhoMenor >= 0.7)
 				return TipoErro.Ortografico;

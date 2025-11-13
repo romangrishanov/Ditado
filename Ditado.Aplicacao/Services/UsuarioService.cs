@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Ditado.Aplicacao.DTOs.Usuarios;
 using Ditado.Dominio.Entidades;
 using Ditado.Infra.Data;
@@ -20,13 +21,18 @@ public class UsuarioService
 
     public async Task<UsuarioResponse> CriarUsuarioAsync(CriarUsuarioRequest request)
     {
+        // Validação adicional de email (caso Data Annotations sejam ignoradas)
+        if (!new EmailAddressAttribute().IsValid(request.Login))
+            throw new InvalidOperationException("Login deve ser um email válido.");
+
+        // Validação de unicidade
         if (await _context.Usuarios.AnyAsync(u => u.Login == request.Login))
             throw new InvalidOperationException("Login já está em uso.");
 
         var usuario = new Usuario
         {
             Nome = request.Nome,
-            Login = request.Login,
+            Login = request.Login.ToLowerInvariant(), // Normaliza email para lowercase
             SenhaHash = _passwordHasher.Hash(request.Senha),
             Tipo = request.Tipo,
             Ativo = true,
@@ -41,8 +47,11 @@ public class UsuarioService
 
     public async Task<LoginResponse?> LoginAsync(LoginRequest request)
     {
+        // Normaliza login para lowercase na busca
+        var loginNormalizado = request.Login.ToLowerInvariant();
+        
         var usuario = await _context.Usuarios
-            .FirstOrDefaultAsync(u => u.Login == request.Login && u.Ativo);
+            .FirstOrDefaultAsync(u => u.Login == loginNormalizado && u.Ativo);
 
         if (usuario == null || !_passwordHasher.Verify(request.Senha, usuario.SenhaHash))
             return null;

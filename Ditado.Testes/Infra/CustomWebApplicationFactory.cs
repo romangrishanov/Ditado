@@ -1,3 +1,7 @@
+using System.Security.Cryptography;
+using System.Text;
+using Ditado.Dominio.Entidades;
+using Ditado.Dominio.Enums;
 using Ditado.Infra.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -46,11 +50,58 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 options.UseInMemoryDatabase(_databaseName);
             });
 
-            // Garante que o banco é criado
+            // Cria banco e faz SEED do admin temporário
             var serviceProvider = services.BuildServiceProvider();
             using var scope = serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
+            
             context.Database.EnsureCreated();
+            
+            // Seed do usuário admin temporário
+            SeedAdminTemporario(context);
         });
+    }
+
+    private void SeedAdminTemporario(DitadoDbContext context)
+    {
+        // Verifica se já existe admin
+        if (context.Usuarios.Any(u => u.Login == "admin@admin.com"))
+            return;
+
+        // Gera hash da senha "admin" (mesmo algoritmo do PasswordHasher)
+        var senhaHash = GerarHashSenha("admin");
+
+        var adminTemp = new Usuario
+        {
+            Nome = "Administrador Temporário",
+            Login = "admin@admin.com",
+            SenhaHash = senhaHash,
+            Tipo = TipoUsuario.Administrador,
+            Ativo = true,
+            DataCriacao = DateTime.UtcNow
+        };
+
+        context.Usuarios.Add(adminTemp);
+        context.SaveChanges();
+    }
+
+    // Replica lógica do PasswordHasher
+    private string GerarHashSenha(string senha)
+    {
+        const int SaltSize = 16;
+        const int KeySize = 32;
+        const int Iterations = 100000;
+        var Algorithm = HashAlgorithmName.SHA256;
+
+        var salt = RandomNumberGenerator.GetBytes(SaltSize);
+        var hash = Rfc2898DeriveBytes.Pbkdf2(
+            Encoding.UTF8.GetBytes(senha),
+            salt,
+            Iterations,
+            Algorithm,
+            KeySize
+        );
+
+        return $"{Convert.ToHexString(salt)}-{Convert.ToHexString(hash)}";
     }
 }
