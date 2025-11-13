@@ -1,0 +1,6 @@
+@Ditado.API_HostAddress = http://localhost:5031
+
+GET {{Ditado.API_HostAddress}}/
+Accept: application/json
+
+###

@@ -1,0 +1,121 @@
+1.1 Contexto do Trabalho
+A prática de ditados em sala de aula é uma ferramenta importante para o desenvolvimento da escrita e da associação entre som e grafia dos alunos, principalmente no ensino fundamental. Segundo pesquisa conduzida pela OCDE em 2015, os professores gastam uma parte significativa da sua carga semanal com atividades como correção de tarefas e provas, em média cerca de cinco horas por semana, o que reduz o tempo disponível para planejamento pedagógico e interação direta com os alunos (OECD, 2020).
+Nesse contexto, o sistema de ditado proposto busca automatizar e otimizar o processo de aplicação e correção, oferecendo correção automática, feedback imediato e acompanhamento detalhado do desempenho da turma. A ferramenta permitirá que professores cadastrem alunos, criem ditados personalizados e acompanhem métricas de evolução; oferecerá aos alunos sessões de ditado com correções em tempo real e recomendações de exercícios; e fornecerá à instituição relatórios comparativos entre turmas e séries, permitindo uma visão integrada do rendimento escolar.
+1.2 Objetivo
+	O objetivo principal do sistema de ditado é automatizar o processo de aplicação e correção de ditados, a fim de apoiar e facilitar a adaptação do ensino. Ele busca fornecer aos professores uma ferramenta para criar ditados e corrigi-los de maneira rápida, permitindo também a criação de listas personalizadas de palavras e o acesso a métricas de erros e acertos dos alunos.
+Outro objetivo é capacitar os alunos a aprender com seus erros, oferecendo correção automática, feedback ao final do exercício, e a oportunidade de revisar as palavras de maior dificuldade. Por fim, o projeto visa fornecer à instituição de ensino uma maneira de comparar o desempenho de alunos em diferentes turmas e séries.
+1.3 Minimundo
+	O sistema de ditado será responsável por automatizar e centralizar o processo de aplicação e correção de ditados no ensino fundamental. Ele permitirá o cadastro de administradores, professores e alunos, cada um com suas respectivas funções. 
+●	Administradores: Administradores: acesso irrestrito, incluindo cadastro e gerenciamento de professores da instituição, alunos e quaisquer outras funcionalidades; 
+●	Professores: Cadastrar turmas e alunos, criar e editar listas de palavras, elaborar textos com lacunas, associar áudios a cada palavra ou frase, além de acessar relatórios detalhados sobre o desempenho de seus alunos; 
+●	Alunos: acesso às sessões de ditado, onde poderão ouvir os áudios e preencher os campos de resposta, recebendo correção automática e feedback após o envio.
+O sistema contará com um banco de palavras em constante crescimento, alimentado pelos professores, que incluirá áudios e rótulos ortográficos para classificar as palavras de acordo com suas características. Esse banco servirá de base para a elaboração de ditados personalizados, que poderão ser configurados com diferentes níveis de dificuldade. Os textos e exercícios também poderão ser compartilhados entre professores da mesma instituição, facilitando a troca de materiais e evitando a repetição de conteúdos. Esse recurso funcionará como um banco de provas e exercícios em formato digital, no qual todos os professores poderão adicionar e consultar conteúdos.
+Durante a execução da atividade, o aluno verá textos com lacunas ou frases a serem completadas, ouvindo os áudios correspondentes. O sistema não exibirá erros durante a digitação, garantindo que a avaliação seja fiel ao desempenho real do estudante. Após a submissão, as respostas serão corrigidas automaticamente e classificadas por tipo de erro, como troca de letras, omissões, problemas de acentuação ou escrita fonética. O resultado será registrado no sistema, permitindo ao professor revisar e homologar as notas.
+O histórico de desempenho de cada aluno ficará armazenado, possibilitando que ele acompanhe sua evolução ao longo do tempo, visualize seus erros recorrentes e receba sugestões de exercícios relacionados às suas dificuldades. Os professores terão acesso a métricas de desempenho individuais e coletivas, permitindo identificar padrões de erro dentro de cada turma. Já a instituição poderá gerar relatórios comparativos entre turmas e séries, acompanhando o rendimento escolar de forma ampla.
+Uma funcionalidade prevista para etapas futuras é o uso de OCR (reconhecimento óptico de caracteres), que permitirá digitalizar respostas feitas em papel e integrá-las automaticamente ao sistema. Essa tecnologia ampliará o alcance da solução em contextos com pouco acesso a computadores, mas é importante ressaltar que não será utilizada no MVP, que terá foco exclusivo na versão online do ditado.
+Assim, o sistema permitirá cadastrar usuários e turmas, gerenciar palavras, áudios e exercícios, aplicar ditados online, corrigir respostas automaticamente, classificar erros, salvar resultados, fornecer feedback imediato, recomendar exercícios personalizados e gerar relatórios completos. Em sua primeira versão, MVP, o foco estará na aplicação digital dos ditados, garantindo um funcionamento estável e eficiente, enquanto recursos adicionais, como o OCR, serão planejados para fases posteriores do projeto.
+Os professores poderão criar bancos contendo palavras categorizadas por série e tipo de exercício, como ortografia, acentuação e fonética, permitindo a construção de ditados mais direcionados.
+2. Visão Geral do Sistema
+2.1 Escopo do sistema
+	Para essa etapa, o "Sistema de Ditado” deverá considerar sua utilização por apenas uma instituição, e a interação com o sistema deverá ocorrer de forma totalmente “on-line". 
+Nessa primeira etapa estamos considerando a implementação das seguintes funções:
+-	Disponibilidade de acesso à plataforma por seus usuários (Administrador(es), Professores e Alunos), de forma totalmente “on-line” (requer um computador conectado à rede).
+-	Os “Administradores” poderão cadastrar novos “Professores” para uso do sistema, além de acessar as funcionalidades dos professores.
+-	Os “Professores” poderão:
+-	Cadastrar novos alunos.
+-	Cadastrar novas turmas de alunos.
+-	Criação, edição e categorização de bancos contendo palavras, textos e áudios, que serão utilizados nas atividades de ditado para os alunos.
+-	Compartilhar o acesso ao conteúdo desenvolvido, sob sua administração, com outros professores.
+-	Planejar atividades de ditado, que consistem na seleção de palavras, áudios e textos que poderão ser liberados de forma independente ou agrupada, em uma sequência de execução, para posterior liberação a um ou mais alunos ou turma(s).
+-	Acessar relatório contendo as seguintes informações:
+-	Acompanhamento da execução, completa ou não, das atividades propostas e programadas (ditados) pelos alunos e pelas turmas.
+-	Acompanhamento do nível de aproveitamento (acertos) dos alunos e das turmas, na execução das atividades programadas
+-	Acompanhamento das principais categorias dos exercícios, possibilitando atuação direcionada no plano de aprendizado.
+-	Os “Alunos” poderão:
+-	Acessar e executar as atividades planejadas e programadas pelos professores de forma totalmente “on-line”.
+-	Acompanhar a execução das atividades de “Ditado” com informações sobre seus erros e acertos, possibilitando evoluir em seu aprendizado.
+2.1.1	Restrições iniciais 
+
+●	Prazos e Recursos de Desenvolvimento: O desenvolvimento da fase inicial desse projeto (MVP) deve ocorrer dentro de um prazo limitado (2-3 meses) e com recursos próprios, o que limita o escopo do projeto e pode restringir a implementação de funcionalidades mais complexas ou integrações automáticas que demandam mais tempo ou recursos.
+
+●	Desempenho e Escalabilidade: Como o sistema será hospedado localmente, estamos limitando a execução a apenas uma instância para atendimento a uma única organização, não sendo projetado, inicialmente, para suportar um crescimento massivo de dados ou usuários, limitando sua escalabilidade.
+
+2.1.2	Exclusões do escopo 
+●	Não estamos considerando, neste momento, os seguintes itens em nosso escopo inicial:
+○	Implementação de reconhecimento de escrita via OCR
+○	Integração do sistema com outros sistemas externos
+○	Desenvolvimento de uma interface específica de acesso através de dispositivos móveis (Celulares, tablets, etc.) .
+○	Arquitetura “Cloud” e “Multi-Tenant", com atendimento simultâneo a diversas organizações.
+
+2.1.3	Considerações futuras
+●	Reconhecimento de escrita através de OCR
+●	Arquitetura “Multi-Tenant” em ambiente “Cloud", para suportar o atendimento a múltiplas organizações e com maior escalabilidade
+●	Interface Mobile.
+
+2.2 Glossário do Sistema
+●	MVP (Minimum Viable Product / Produto Mínimo Viável) - Versão inicial do sistema que contém apenas as funcionalidades essenciais para validação do projeto, permitindo testes com usuários reais e evolução gradual do produto.
+
+●	OCR (Optical Character Recognition / Reconhecimento Óptico de Caracteres) - Tecnologia que converte imagens de textos impressos ou manuscritos em dados digitais editáveis e pesquisáveis, possibilitando a leitura automática de documentos, provas ou formulários escaneados.
+
+2.3 Atores do Sistema
+1. Aluno: ator central que utiliza o sistema para desenvolver suas habilidades de escrita. Pode acessar e executar atividades de ditado, visualizar feedback e acompanhar sua evolução.
+2. Professor: responsável por organizar e aplicar atividades de ditado. Pode cadastrar alunos e turmas, criar e editar listas de palavras/textos/áudios, planejar atividades e consultar relatórios de desempenho.
+3. Administradores: possui acesso irrestrito ao sistema. Pode executar qualquer funcionalidade disponível a professores e alunos, além de gerenciar usuários, permissões e dados da instituição.
+
+2.4 Requisitos Funcionais do Sistema
+Os requisitos funcionais do sistemas foram descritos no formato de histórias de usuário:
+
+
+RF01	Como professor, quero poder acessar métricas de erros e acertos dos alunos, para que novas estratégias de ensino possam ser adotadas.
+RF02	Como aluno, quero iniciar sessões de ditado para que meu conhecimento possa ser avaliado.
+RF03	Como professor, quero poder cadastrar novas palavras, áudios e textos, para que novas avaliações possam ser criadas.
+RF04	Como professor, quero gerar relatórios de resultados e evolução de alunos e turmas, para acompanhar seu desempenho ao longo do tempo.
+RF05	Como aluno, quero poder visualizar a correção automática do ditado, para que eu entenda meus erros.
+RF06	Como professor, quero consultar uma lista de palavras já utilizadas em ditados anteriores, para evitar repetições e planejar novos exercícios.
+RF07	Como professor, quero poder consultar uma lista de palavras que foram utilizadas em ditados anteriores, para que possa ser possível controlar as sessões de ditado. 
+RF08	Como professor, quero gerar comparativos de rendimento entre alunos ou turmas da mesma série do ensino fundamental.
+RF09	Como professor, quero cadastrar novos alunos e acompanhar seu progresso ao longo do tempo, para manter a turma atualizada e monitorar sua evolução educacional.
+RF10	Como aluno, quero receber recomendações de exercícios semelhantes aos que mais errei, para reforçar minha aprendizagem.
+RF12	Como administrador, quero ter acesso irrestrito a todas as funcionalidades do sistema, para todos os perfis.
+RF13	Como professor, quero criar e editar listas de ditado personalizadas, para adaptar os exercícios às necessidades da turma.
+RF14	Como aluno, quero receber feedback imediatamente após terminar o ditado, para corrigir meus erros imediatamente.
+RF15	Como professor, quero que o sistema sugira automaticamente palavras com base no campo semântico escolhido, para facilitar a criação de exercícios.
+RF16	Como professor, quero selecionar o nível de dificuldade das palavras do ditado, para adequar o exercício ao nível da turma.
+RF17	“Como professor, quero classificar as questões por nível de dificuldade (fácil, médio, difícil) ou categoria (fonética, ortográfica, acentuação), para ajustar o desafio ao nível dos alunos.
+RF18	Como aluno, quero que o sistema reproduza a pronúncia correta de cada palavra corrigida, para melhorar minha compreensão oral.
+RF19	Como professor, quero classificar os erros cometidos pelos alunos por tipo (ortográfico, fonológico, etc.), para identificar padrões de dificuldade.
+RF20	Como professor, quero gerar relatórios mensais de desempenho da turma, para avaliar os resultados e apoiar decisões pedagógicas.
+RF21	Como professor, quero criar grupos de alunos com características semelhantes, para planejar intervenções pedagógicas mais eficazes.
+RF22	Como professor, quero que o sistema processe fotos de ditados escritos à mão e os corrija automaticamente, para otimizar meu tempo de avaliação.
+RF23	Como aluno, quero receber dicas de ortografia durante a correção, para melhorar meu aprendizado de forma guiada.
+RF24	Como usuário cadastrado, quero autenticar-me com CPF/e-mail e senha, para que eu acesse minha conta e minhas permissões.
+RF25	Como administrador, quero atribuir diferentes perfis de acesso aos diferentes usuários, para que cada usuário só consiga acessar, visualizar e executar as atividades / funcionalidades que seu perfil permite.
+RF26	Como usuário autenticado, quero poder encerrar minha sessão, para que minha conta fique protegida quando eu terminar.
+RF27	Como professor, quero definir e programar sequências de atividades para que sejam executadas pelos alunos, para que haja um plano de estudo organizado.
+RF28	O sistema deve implementar Inteligência Artificial para identificação dos padrões de erro da turma.
+RF29	O sistema deve implementar OCR para realizar a coleta de dados.
+RF30	O sistema deve salvar automaticamente os resultados das sessões de ditado.
+
+2.5 Requisitos Não Funcionais do Sistema
+
+
+RNF01	O sistema deve produzir e reproduzir áudios correspondentes aos textos e palavras dos ditados
+RNF02	O tempo de resposta para o cadastro de novas palavras deve ser menor do que 10 segundos..
+RNF03	O sistema deve armazenar as palavras em um banco de dados relacional.
+RNF04	O sistema deve ser compatível com dispositivos móveis.
+RNF05	O sistema deve funcionar bem nos principais navegadores web, como Google Chrome, Mozilla Firefox, Safari e Microsoft Edge, e seu design deve ser responsivo e se adaptar a diferentes telas, garantindo que usuários consigam acessar confortavelmente em computadores, notebooks, tablets ou celulares.
+RNF06 	O sistema deve estar disponível 98% do tempo, com 2% reservado para manutenções programadas.
+RNF07	O sistema deve garantir comunicação segura via HTTPS e autenticação por API
+RNF08	O sistema deve responder com feedback ao aluno em até 5 segundos após a conclusão do exercício.
+
+2.6 Regras de Negócio do Sistema
+
+RN01 	As atividades de ditado são realizadas conforme a demanda, a qualquer momento.
+RN02 	O feedback das respostas dos alunos é revelado somente depois da sessão de ditado.
+RN03	As atividades executadas por um aluno devem ter seu resultado preservado para fins de avaliação do aprendizado ao longo do tempo.
+RN04 	Além de informar o erro, o tipo de erro cometido pelo aluno também está contido no feedback.
+RN05	Um professor deve ser cadastrado com seu nome, CPF, cidade e UF.
+RN06	Um aluno deve ser cadastrado com seu nome, CPF, escola, cidade e UF.
+RN07	Uma turma deve possuir um identificador único, é formada por dois ou mais alunos e deve ter um professor como responsável.
+RN08	Um aluno ou um professor não devem ser cadastrados mais de uma vez.
+
