@@ -82,6 +82,29 @@ builder.Services.AddScoped<TokenService>();
 
 var app = builder.Build();
 
+// APLICAR MIGRATIONS AUTOMATICAMENTE NO STARTUP (APENAS EM PRODUÇÃO)
+if (!app.Environment.EnvironmentName.Equals("Development", StringComparison.OrdinalIgnoreCase))
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var services = scope.ServiceProvider;
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        
+        try
+        {
+            logger.LogInformation("Aplicando migrations...");
+            var context = services.GetRequiredService<DitadoDbContext>();
+            context.Database.Migrate();
+            logger.LogInformation("Migrations aplicadas com sucesso!");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Erro ao aplicar migrations: {Message}", ex.Message);
+            throw;
+        }
+    }
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
