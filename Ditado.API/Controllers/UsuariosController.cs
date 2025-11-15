@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using Ditado.Aplicacao.DTOs.Usuarios;
 using Ditado.Aplicacao.Services;
+using Ditado.Dominio.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -31,16 +33,78 @@ public class UsuariosController : ControllerBase
         }
     }
 
+    [HttpPost("solicitar-acesso")]
+    [AllowAnonymous]
+    public async Task<ActionResult<UsuarioResponse>> SolicitarAcesso([FromBody] CriarUsuarioRequest request)
+    {
+        try
+        {
+            var usuario = await _usuarioService.SolicitarAcessoAsync(request);
+            return Ok(new 
+            { 
+                mensagem = "Solicitação de acesso enviada com sucesso! Aguarde a aprovação de um administrador ou professor.",
+                usuario 
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
+    [HttpGet("solicitacoes-pendentes")]
+    [Authorize(Roles = "Administrador,Professor")]
+    public async Task<ActionResult<List<UsuarioResponse>>> ListarSolicitacoesPendentes()
+    {
+        var solicitacoes = await _usuarioService.ListarSolicitacoesPendentesAsync();
+        return Ok(solicitacoes);
+    }
+
+    [HttpPost("{id}/aprovar-acesso")]
+    [Authorize(Roles = "Administrador,Professor")]
+    public async Task<ActionResult<UsuarioResponse>> AprovarAcesso(int id, [FromBody] AprovarAcessoRequest request)
+    {
+        try
+        {
+            // Obtém o tipo do usuário logado
+            var tipoUsuarioLogado = User.FindFirst(ClaimTypes.Role)?.Value;
+            var tipoEnum = Enum.Parse<TipoUsuario>(tipoUsuarioLogado ?? "Aluno");
+
+            var usuario = await _usuarioService.AprovarAcessoAsync(id, request, tipoEnum);
+
+            if (usuario == null)
+                return NotFound(new { mensagem = "Usuário não encontrado." });
+
+            return Ok(new 
+            { 
+                mensagem = "Acesso aprovado com sucesso!",
+                usuario 
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { mensagem = ex.Message });
+        }
+    }
+
     [HttpPost("login")]
     [AllowAnonymous]
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
     {
-        var resultado = await _usuarioService.LoginAsync(request);
+        try
+        {
+            var resultado = await _usuarioService.LoginAsync(request);
 
-        if (resultado == null)
-            return Unauthorized(new { mensagem = "Login ou senha inválidos." });
+            if (resultado == null)
+                return Unauthorized(new { mensagem = "Login ou senha inválidos." });
 
-        return Ok(resultado);
+            return Ok(resultado);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Retorna erro específico para acesso não aprovado
+            return Unauthorized(new { mensagem = ex.Message });
+        }
     }
 
     [HttpGet("{id}")]

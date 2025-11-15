@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Ditado.Aplicacao.DTOs.Usuarios;
 using Ditado.Dominio.Entidades;
+using Ditado.Dominio.Enums;
 using Ditado.Infra.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,15 +20,18 @@ public class UsuarioService
         _tokenService = tokenService;
     }
 
+    // Criar usuário (Admin cria diretamente com tipo específico)
     public async Task<UsuarioResponse> CriarUsuarioAsync(CriarUsuarioRequest request)
     {
-        // Validação adicional de email (caso Data Annotations sejam ignoradas)
         if (!new EmailAddressAttribute().IsValid(request.Login))
             throw new InvalidOperationException("Login deve ser um email válido.");
 
-        // Validação de unicidade
-        if (await _context.Usuarios.AnyAsync(u => u.Login == request.Login))
+        if (await _context.Usuarios.AnyAsync(u => u.Login == request.Login.ToLowerInvariant()))
             throw new InvalidOperationException("Login já está em uso.");
+
+        // Exige Tipo quando usado pelo Admin
+        if (!request.Tipo.HasValue)
+            throw new InvalidOperationException("Tipo de usuário é obrigatório.");
 
         var usuario = new Usuario
         {
@@ -35,7 +39,7 @@ public class UsuarioService
             Login = request.Login.ToLowerInvariant(),
             SenhaHash = _passwordHasher.Hash(request.Senha),
             Matricula = request.Matricula,
-            Tipo = request.Tipo,
+            Tipo = request.Tipo.Value,
             Ativo = true,
             DataCriacao = DateTime.UtcNow
         };
@@ -46,15 +50,88 @@ public class UsuarioService
         return MapearParaResponse(usuario);
     }
 
+    public async Task<UsuarioResponse> SolicitarAcessoAsync(CriarUsuarioRequest request)
+    {
+        if (!new EmailAddressAttribute().IsValid(request.Login))
+            throw new InvalidOperationException("Login deve ser um email válido.");
+
+        var loginNormalizado = request.Login.ToLowerInvariant();
+
+        if (await _context.Usuarios.AnyAsync(u => u.Login == loginNormalizado))
+            throw new InvalidOperationException("Este email já está cadastrado no sistema.");
+
+        var usuario = new Usuario
+        {
+            Nome = request.Nome,
+            Login = loginNormalizado,
+            SenhaHash = _passwordHasher.Hash(request.Senha),
+            Matricula = request.Matricula,
+            Tipo = TipoUsuario.AcessoSolicitado, // Ignora request.Tipo
+            Ativo = false, // Inativo até aprovação
+            DataCriacao = DateTime.UtcNow
+        };
+
+        _context.Usuarios.Add(usuario);
+        await _context.SaveChangesAsync();
+
+        return MapearParaResponse(usuario);
+    }
+
+    public async Task<List<UsuarioResponse>> ListarSolicitacoesPendentesAsync()
+    {
+        return await _context.Usuarios
+            .Where(u => u.Tipo == TipoUsuario.AcessoSolicitado && !u.Ativo)
+            .OrderBy(u => u.DataCriacao)
+            .Select(u => MapearParaResponse(u))
+            .ToListAsync();
+    }
+
+    public async Task<UsuarioResponse?> AprovarAcessoAsync(int usuarioId, AprovarAcessoRequest request, TipoUsuario tipoAprovador)
+    {
+        var usuario = await _context.Usuarios.FindAsync(usuarioId);
+        
+        if (usuario == null)
+            return null;
+
+        if (usuario.Tipo != TipoUsuario.AcessoSolicitado)
+            throw new InvalidOperationException("Este usuário não está pendente de aprovação.");
+
+        // Validação: Professor só pode aprovar como Aluno ou Professor
+        if (tipoAprovador == TipoUsuario.Professor)
+        {
+            if (request.NovoTipo != TipoUsuario.Aluno && request.NovoTipo != TipoUsuario.Professor)
+                throw new InvalidOperationException("Professores só podem aprovar usuários como Aluno ou Professor.");
+        }
+
+        // Validação: Não pode aprovar como AcessoSolicitado
+        if (request.NovoTipo == TipoUsuario.AcessoSolicitado)
+            throw new InvalidOperationException("Não é possível aprovar usuário com tipo 'AcessoSolicitado'.");
+
+        usuario.Tipo = request.NovoTipo;
+        usuario.Ativo = true;
+
+        await _context.SaveChangesAsync();
+
+        return MapearParaResponse(usuario);
+    }
+
     public async Task<LoginResponse?> LoginAsync(LoginRequest request)
     {
         var loginNormalizado = request.Login.ToLowerInvariant();
         
         var usuario = await _context.Usuarios
-            .FirstOrDefaultAsync(u => u.Login == loginNormalizado && u.Ativo);
+            .FirstOrDefaultAsync(u => u.Login == loginNormalizado);
 
         if (usuario == null || !_passwordHasher.Verify(request.Senha, usuario.SenhaHash))
             return null;
+
+        // Bloquear login de usuários com acesso pendente
+        if (usuario.Tipo == TipoUsuario.AcessoSolicitado)
+            throw new InvalidOperationException("Seu acesso ainda não foi aprovado. Aguarde a aprovação de um administrador ou professor.");
+
+        // Bloquear login de usuários inativos
+        if (!usuario.Ativo)
+            throw new InvalidOperationException("Sua conta está inativa. Entre em contato com o administrador.");
 
         usuario.DataUltimoAcesso = DateTime.UtcNow;
         await _context.SaveChangesAsync();
@@ -93,7 +170,7 @@ public class UsuarioService
         if (!string.IsNullOrWhiteSpace(request.Nome))
             usuario.Nome = request.Nome;
 
-        if (request.Matricula != null) // Permite limpar matrícula enviando string vazia
+        if (request.Matricula != null)
             usuario.Matricula = string.IsNullOrWhiteSpace(request.Matricula) ? null : request.Matricula;
 
         if (!string.IsNullOrWhiteSpace(request.SenhaAtual) && !string.IsNullOrWhiteSpace(request.SenhaNova))

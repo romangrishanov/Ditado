@@ -4,5 +4,6 @@ public enum TipoUsuario
 {
     Administrador = 1,
     Professor = 2,
-    Aluno = 3
+    Aluno = 3,
+    AcessoSolicitado = 4
 }

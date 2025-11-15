@@ -93,8 +93,8 @@ builder.Services.AddScoped<TokenService>();
 
 var app = builder.Build();
 
-// APLICAR MIGRATIONS AUTOMATICAMENTE NO STARTUP (APENAS EM PRODUÇÃO)
-if (!app.Environment.EnvironmentName.Equals("Development", StringComparison.OrdinalIgnoreCase))
+// APLICAR MIGRATIONS AUTOMATICAMENTE (APENAS EM PRODUÇÃO - NÃO EM DEVELOPMENT NEM TESTING)
+if (!app.Environment.IsDevelopment() && !app.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))
 {
     using (var scope = app.Services.CreateScope())
     {
