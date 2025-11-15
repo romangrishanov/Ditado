@@ -32,8 +32,9 @@ public class UsuarioService
         var usuario = new Usuario
         {
             Nome = request.Nome,
-            Login = request.Login.ToLowerInvariant(), // Normaliza email para lowercase
+            Login = request.Login.ToLowerInvariant(),
             SenhaHash = _passwordHasher.Hash(request.Senha),
+            Matricula = request.Matricula,
             Tipo = request.Tipo,
             Ativo = true,
             DataCriacao = DateTime.UtcNow
@@ -47,7 +48,6 @@ public class UsuarioService
 
     public async Task<LoginResponse?> LoginAsync(LoginRequest request)
     {
-        // Normaliza login para lowercase na busca
         var loginNormalizado = request.Login.ToLowerInvariant();
         
         var usuario = await _context.Usuarios
@@ -92,6 +92,9 @@ public class UsuarioService
 
         if (!string.IsNullOrWhiteSpace(request.Nome))
             usuario.Nome = request.Nome;
+
+        if (request.Matricula != null) // Permite limpar matrícula enviando string vazia
+            usuario.Matricula = string.IsNullOrWhiteSpace(request.Matricula) ? null : request.Matricula;
 
         if (!string.IsNullOrWhiteSpace(request.SenhaAtual) && !string.IsNullOrWhiteSpace(request.SenhaNova))
         {
@@ -149,6 +152,7 @@ public class UsuarioService
             Id = usuario.Id,
             Nome = usuario.Nome,
             Login = usuario.Login,
+            Matricula = usuario.Matricula,
             Tipo = usuario.Tipo.ToString(),
             Ativo = usuario.Ativo,
             DataCriacao = usuario.DataCriacao,

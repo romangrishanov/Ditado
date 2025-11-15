@@ -27,6 +27,9 @@ public class UsuarioConfiguration : IEntityTypeConfiguration<Usuario>
             .IsRequired()
             .HasMaxLength(500);
         
+        builder.Property(u => u.Matricula)
+            .HasMaxLength(20);
+        
         builder.Property(u => u.Tipo)
             .IsRequired()
             .HasConversion<int>();

@@ -18,6 +18,10 @@ public class CriarUsuarioRequest
     [StringLength(100, MinimumLength = 6, ErrorMessage = "Senha deve ter no mínimo 6 caracteres.")]
     public string Senha { get; set; } = string.Empty;
 
+    // Novo campo opcional adicionado
+    [StringLength(20, ErrorMessage = "Matrícula não pode exceder 20 caracteres.")]
+    public string? Matricula { get; set; }
+
     [Required(ErrorMessage = "Tipo de usuário é obrigatório.")]
     public TipoUsuario Tipo { get; set; }
 }
