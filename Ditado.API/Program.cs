@@ -12,6 +12,17 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
+// CORS - TOTALMENTE ABERTO
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()      // Qualquer origem
+              .AllowAnyMethod()      // Qualquer método
+              .AllowAnyHeader();     // Qualquer header
+    });
+});
+
 // Swagger com JWT
 builder.Services.AddSwaggerGen(c =>
 {
@@ -113,6 +124,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseSwagger();
 app.UseSwaggerUI();
+
+// USAR CORS - DEVE VIR ANTES DE UseAuthentication/UseAuthorization
+app.UseCors("AllowAll");
 
 app.UseHttpsRedirection();
 
