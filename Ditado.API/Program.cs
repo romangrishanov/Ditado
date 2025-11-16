@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using Ditado.Aplicacao.Services;
 using Ditado.Infra.Data;
@@ -17,16 +18,37 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()      // Qualquer origem
-              .AllowAnyMethod()      // Qualquer método
-              .AllowAnyHeader();     // Qualquer header
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
     });
 });
 
 // Swagger com JWT
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Ditado API", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo 
+    { 
+        Title = "Ditado API", 
+        Version = "v1",
+        Description = "API para gerenciamento de ditados escolares"
+    });
+    
+    // Usar o diretório do assembly em vez de AppContext.BaseDirectory
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, xmlFile);
+    
+    if (File.Exists(xmlPath))
+    {
+        c.IncludeXmlComments(xmlPath);
+        Console.WriteLine($"XML encontrado: {xmlPath}");
+    }
+    else
+    {
+        Console.WriteLine($"XML NÃO encontrado em: {xmlPath}");
+        Console.WriteLine($"   Procurando em: {Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}");
+        Console.WriteLine($"   Arquivos disponíveis: {string.Join(", ", Directory.GetFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "*.xml"))}");
+    }
     
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
