@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ditado.Dominio.Enums;
 
 namespace Ditado.Aplicacao.DTOs.Usuarios;
 
@@ -14,4 +15,8 @@ public class AtualizarUsuarioRequest
     
     [StringLength(100, MinimumLength = 6, ErrorMessage = "Senha nova deve ter no mínimo 6 caracteres.")]
     public string? SenhaNova { get; set; }
+    
+    public TipoUsuario? Tipo { get; set; }
+
+    public bool? Ativo { get; set; }
 }

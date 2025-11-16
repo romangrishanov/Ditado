@@ -20,7 +20,6 @@ public class UsuarioService
         _tokenService = tokenService;
     }
 
-    // Criar usuário (Admin cria diretamente com tipo específico)
     public async Task<UsuarioResponse> CriarUsuarioAsync(CriarUsuarioRequest request)
     {
         if (!new EmailAddressAttribute().IsValid(request.Login))
@@ -29,7 +28,6 @@ public class UsuarioService
         if (await _context.Usuarios.AnyAsync(u => u.Login == request.Login.ToLowerInvariant()))
             throw new InvalidOperationException("Login já está em uso.");
 
-        // Exige Tipo quando usado pelo Admin
         if (!request.Tipo.HasValue)
             throw new InvalidOperationException("Tipo de usuário é obrigatório.");
 
@@ -66,8 +64,8 @@ public class UsuarioService
             Login = loginNormalizado,
             SenhaHash = _passwordHasher.Hash(request.Senha),
             Matricula = request.Matricula,
-            Tipo = TipoUsuario.AcessoSolicitado, // Ignora request.Tipo
-            Ativo = false, // Inativo até aprovação
+            Tipo = TipoUsuario.AcessoSolicitado,
+            Ativo = false,
             DataCriacao = DateTime.UtcNow
         };
 
@@ -96,14 +94,12 @@ public class UsuarioService
         if (usuario.Tipo != TipoUsuario.AcessoSolicitado)
             throw new InvalidOperationException("Este usuário não está pendente de aprovação.");
 
-        // Validação: Professor só pode aprovar como Aluno ou Professor
         if (tipoAprovador == TipoUsuario.Professor)
         {
             if (request.NovoTipo != TipoUsuario.Aluno && request.NovoTipo != TipoUsuario.Professor)
                 throw new InvalidOperationException("Professores só podem aprovar usuários como Aluno ou Professor.");
         }
 
-        // Validação: Não pode aprovar como AcessoSolicitado
         if (request.NovoTipo == TipoUsuario.AcessoSolicitado)
             throw new InvalidOperationException("Não é possível aprovar usuário com tipo 'AcessoSolicitado'.");
 
@@ -125,11 +121,9 @@ public class UsuarioService
         if (usuario == null || !_passwordHasher.Verify(request.Senha, usuario.SenhaHash))
             return null;
 
-        // Bloquear login de usuários com acesso pendente
         if (usuario.Tipo == TipoUsuario.AcessoSolicitado)
             throw new InvalidOperationException("Seu acesso ainda não foi aprovado. Aguarde a aprovação de um administrador ou professor.");
 
-        // Bloquear login de usuários inativos
         if (!usuario.Ativo)
             throw new InvalidOperationException("Sua conta está inativa. Entre em contato com o administrador.");
 
@@ -161,18 +155,33 @@ public class UsuarioService
             .ToListAsync();
     }
 
-    public async Task<UsuarioResponse?> AtualizarUsuarioAsync(int id, AtualizarUsuarioRequest request)
+    public async Task<UsuarioResponse?> AtualizarUsuarioAsync(int id, AtualizarUsuarioRequest request, int usuarioLogadoId, TipoUsuario tipoUsuarioLogado)
     {
         var usuario = await _context.Usuarios.FindAsync(id);
         if (usuario == null)
             return null;
 
+        var isEdicaoPropria = id == usuarioLogadoId;
+
+        // EDIÇÃO PRÓPRIA: Apenas Nome, Senha e Matrícula
+        if (isEdicaoPropria)
+        {
+            if (request.Tipo.HasValue)
+                throw new InvalidOperationException("Você não pode alterar seu próprio tipo.");
+            
+            if (request.Ativo.HasValue)
+                throw new InvalidOperationException("Você não pode alterar seu próprio status ativo.");
+        }
+
+        // Nome (todos podem alterar próprio ou Admin/Prof podem alterar de outros)
         if (!string.IsNullOrWhiteSpace(request.Nome))
             usuario.Nome = request.Nome;
 
+        // Matrícula (todos podem alterar próprio ou Admin/Prof podem alterar de outros)
         if (request.Matricula != null)
             usuario.Matricula = string.IsNullOrWhiteSpace(request.Matricula) ? null : request.Matricula;
 
+        // Senha (todos podem alterar própria)
         if (!string.IsNullOrWhiteSpace(request.SenhaAtual) && !string.IsNullOrWhiteSpace(request.SenhaNova))
         {
             if (!_passwordHasher.Verify(request.SenhaAtual, usuario.SenhaHash))
@@ -181,9 +190,82 @@ public class UsuarioService
             usuario.SenhaHash = _passwordHasher.Hash(request.SenhaNova);
         }
 
+        // ATIVO (apenas para edição de outros)
+        if (!isEdicaoPropria && request.Ativo.HasValue)
+        {
+            ValidarAlteracaoAtivo(tipoUsuarioLogado, usuario.Tipo);
+            usuario.Ativo = request.Ativo.Value;
+        }
+
+        // TIPO (apenas para edição de outros)
+        if (!isEdicaoPropria && request.Tipo.HasValue)
+        {
+            ValidarAlteracaoTipo(tipoUsuarioLogado, usuario.Tipo, request.Tipo.Value);
+            usuario.Tipo = request.Tipo.Value;
+        }
+
         await _context.SaveChangesAsync();
 
         return MapearParaResponse(usuario);
+    }
+
+    // VALIDAÇÃO: Alteração de Ativo
+    private void ValidarAlteracaoAtivo(TipoUsuario tipoLogado, TipoUsuario tipoAlvo)
+    {
+        // Aluno não pode alterar ninguém
+        if (tipoLogado == TipoUsuario.Aluno)
+            throw new InvalidOperationException("Alunos não podem alterar status de outros usuários.");
+
+        // Professor só pode alterar Alunos e AcessoSolicitado
+        if (tipoLogado == TipoUsuario.Professor)
+        {
+            if (tipoAlvo != TipoUsuario.Aluno && tipoAlvo != TipoUsuario.AcessoSolicitado)
+                throw new InvalidOperationException("Professores só podem alterar status de Alunos e usuários com AcessoSolicitado.");
+        }
+
+        // Admin pode alterar qualquer um (sem validação adicional)
+    }
+
+    // VALIDAÇÃO: Alteração de Tipo
+    private void ValidarAlteracaoTipo(TipoUsuario tipoLogado, TipoUsuario tipoAtual, TipoUsuario tipoNovo)
+    {
+        // Não pode reduzir para AcessoSolicitado
+        if (tipoNovo == TipoUsuario.AcessoSolicitado)
+            throw new InvalidOperationException("Não é possível alterar usuário para tipo 'AcessoSolicitado'. Para bloquear acesso, desative o usuário.");
+
+        var hierarquia = new Dictionary<TipoUsuario, int>
+        {
+            { TipoUsuario.AcessoSolicitado, 0 },
+            { TipoUsuario.Aluno, 1 },
+            { TipoUsuario.Professor, 2 },
+            { TipoUsuario.Administrador, 3 }
+        };
+
+        var nivelAtual = hierarquia[tipoAtual];
+        var nivelNovo = hierarquia[tipoNovo];
+        var isAumento = nivelNovo > nivelAtual;
+        var isReducao = nivelNovo < nivelAtual;
+
+        // Aluno não pode alterar tipo de ninguém
+        if (tipoLogado == TipoUsuario.Aluno)
+            throw new InvalidOperationException("Alunos não podem alterar tipo de outros usuários.");
+
+        // Professor pode aumentar, mas não reduzir
+        if (tipoLogado == TipoUsuario.Professor)
+        {
+            if (isReducao)
+                throw new InvalidOperationException("Apenas administradores podem reduzir tipo de usuário.");
+
+            // Professor só pode aumentar Aluno > Professor (não pode criar Admin)
+            if (isAumento && tipoNovo == TipoUsuario.Administrador)
+                throw new InvalidOperationException("Professores não podem promover usuários a Administrador.");
+
+            // Professor só pode alterar AcessoSolicitado e Alunos
+            if (tipoAtual != TipoUsuario.AcessoSolicitado && tipoAtual != TipoUsuario.Aluno)
+                throw new InvalidOperationException("Professores só podem alterar tipo de usuários com AcessoSolicitado ou Alunos.");
+        }
+
+        // Admin pode fazer qualquer alteração (exceto para AcessoSolicitado, já validado acima)
     }
 
     public async Task<bool> BloquearUsuarioAsync(int id)

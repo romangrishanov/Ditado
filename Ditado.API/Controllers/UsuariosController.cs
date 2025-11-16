@@ -66,7 +66,6 @@ public class UsuariosController : ControllerBase
     {
         try
         {
-            // Obtém o tipo do usuário logado
             var tipoUsuarioLogado = User.FindFirst(ClaimTypes.Role)?.Value;
             var tipoEnum = Enum.Parse<TipoUsuario>(tipoUsuarioLogado ?? "Aluno");
 
@@ -102,7 +101,6 @@ public class UsuariosController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            // Retorna erro específico para acesso não aprovado
             return Unauthorized(new { mensagem = ex.Message });
         }
     }
@@ -133,7 +131,11 @@ public class UsuariosController : ControllerBase
     {
         try
         {
-            var usuario = await _usuarioService.AtualizarUsuarioAsync(id, request);
+            // Obter ID e Tipo do usuário logado
+            var usuarioLogadoId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var tipoUsuarioLogado = Enum.Parse<TipoUsuario>(User.FindFirst(ClaimTypes.Role)?.Value ?? "Aluno");
+
+            var usuario = await _usuarioService.AtualizarUsuarioAsync(id, request, usuarioLogadoId, tipoUsuarioLogado);
 
             if (usuario == null)
                 return NotFound(new { mensagem = "Usuário não encontrado." });
