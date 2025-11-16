@@ -88,6 +88,7 @@ builder.Services.AddAuthorization();
 // Application Services
 builder.Services.AddScoped<DitadoService>();
 builder.Services.AddScoped<UsuarioService>();
+builder.Services.AddScoped<TurmaService>();
 builder.Services.AddSingleton<PasswordHasher>();
 builder.Services.AddScoped<TokenService>();
 
