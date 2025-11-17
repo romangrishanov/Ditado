@@ -237,4 +237,103 @@ public class TurmasController : ControllerBase
             return StatusCode(403, new { mensagem = ex.Message });
         }
     }
+
+	/// <summary>
+	/// Adiciona um aluno à turma
+	/// </summary>
+	/// <remarks>
+	/// Matricula um aluno específico em uma turma.
+	/// Apenas Administradores e Professores podem adicionar alunos.
+	/// 
+	/// **Validações:**
+	/// - Turma deve existir e estar ativa
+	/// - ID fornecido deve ser de um usuário com tipo "Aluno"
+	/// - Aluno não pode já estar matriculado na turma
+	/// 
+	/// Exemplo de requisição:
+	/// 
+	///     POST /api/turmas/5/alunos/10
+	///     
+	/// (Adiciona aluno ID 10 à turma ID 5)
+	/// </remarks>
+	/// <param name="turmaId">ID da turma</param>
+	/// <param name="alunoId">ID do aluno a ser adicionado</param>
+	/// <returns>Turma atualizada com novo aluno</returns>
+	/// <response code="200">Aluno adicionado com sucesso</response>
+	/// <response code="400">Aluno inválido ou já matriculado</response>
+	/// <response code="401">Não autenticado</response>
+	/// <response code="403">Sem permissão (apenas Admin e Professor)</response>
+	/// <response code="404">Turma não encontrada</response>
+	[HttpPost("{turmaId}/alunos/{alunoId}")]
+	[Authorize(Roles = "Administrador,Professor")]
+	[ProducesResponseType(typeof(TurmaResponse), StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status400BadRequest)]
+	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(StatusCodes.Status403Forbidden)]
+	[ProducesResponseType(StatusCodes.Status404NotFound)]
+	public async Task<ActionResult<TurmaResponse>> AdicionarAluno(int turmaId, int alunoId)
+	{
+		try
+		{
+			var turma = await _turmaService.AdicionarAlunoAsync(turmaId, alunoId);
+
+			if (turma == null)
+				return NotFound(new { mensagem = "Turma não encontrada." });
+
+			return Ok(turma);
+		}
+		catch (InvalidOperationException ex)
+		{
+			return BadRequest(new { mensagem = ex.Message });
+		}
+	}
+
+	/// <summary>
+	/// Remove um aluno da turma
+	/// </summary>
+	/// <remarks>
+	/// Desmatricula um aluno específico de uma turma.
+	/// Apenas Administradores e Professores podem remover alunos.
+	/// 
+	/// **Validações:**
+	/// - Turma deve existir
+	/// - Aluno deve estar matriculado na turma
+	/// 
+	/// Exemplo de requisição:
+	/// 
+	///     DELETE /api/turmas/5/alunos/10
+	///     
+	/// (Remove aluno ID 10 da turma ID 5)
+	/// </remarks>
+	/// <param name="turmaId">ID da turma</param>
+	/// <param name="alunoId">ID do aluno a ser removido</param>
+	/// <returns>Turma atualizada sem o aluno</returns>
+	/// <response code="200">Aluno removido com sucesso</response>
+	/// <response code="400">Aluno não está na turma</response>
+	/// <response code="401">Não autenticado</response>
+	/// <response code="403">Sem permissão (apenas Admin e Professor)</response>
+	/// <response code="404">Turma não encontrada</response>
+	[HttpDelete("{turmaId}/alunos/{alunoId}")]
+	[Authorize(Roles = "Administrador,Professor")]
+	[ProducesResponseType(typeof(TurmaResponse), StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status400BadRequest)]
+	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(StatusCodes.Status403Forbidden)]
+	[ProducesResponseType(StatusCodes.Status404NotFound)]
+	public async Task<ActionResult<TurmaResponse>> RemoverAluno(int turmaId, int alunoId)
+	{
+		try
+		{
+			var turma = await _turmaService.RemoverAlunoAsync(turmaId, alunoId);
+
+			if (turma == null)
+				return NotFound(new { mensagem = "Turma não encontrada." });
+
+			return Ok(turma);
+		}
+		catch (InvalidOperationException ex)
+		{
+			return BadRequest(new { mensagem = ex.Message });
+		}
+	}
 }

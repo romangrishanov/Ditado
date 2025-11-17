@@ -483,6 +483,128 @@ public class TurmasControllerTests : TesteIntegracaoBase
 
 	#endregion
 
+	#region Gerenciar Alunos
+
+	[Fact]
+	public async Task AdicionarAluno_ComoProfessor_DevePermitir()
+	{
+		// Arrange
+		var (tokenProf, profId) = await CriarELogarProfessorAsync();
+		AdicionarTokenAutorizacao(tokenProf);
+
+		var turmaId = await CriarTurmaTeste(profId);
+		var alunoId = await CriarAlunoAsync("aluno.adicionar@teste.com", "Aluno Adicionar");
+
+		// Act
+		var response = await PostAsync<TurmaResponse>($"/api/turmas/{turmaId}/alunos/{alunoId}", new { });
+
+		// Assert
+		response.Should().NotBeNull();
+		response!.TotalAlunos.Should().Be(1);
+		response.Alunos.Should().Contain(a => a.Id == alunoId);
+	}
+
+	[Fact]
+	public async Task AdicionarAluno_AlunoJaMatriculado_DeveRetornarErro()
+	{
+		// Arrange
+		var (tokenProf, profId) = await CriarELogarProfessorAsync();
+		AdicionarTokenAutorizacao(tokenProf);
+
+		var alunoId = await CriarAlunoAsync("aluno.duplicado@teste.com", "Aluno Duplicado");
+		var turmaId = await CriarTurmaComAlunosAsync(profId, new List<int> { alunoId });
+
+		// Act
+		var response = await PostAsyncRaw($"/api/turmas/{turmaId}/alunos/{alunoId}", new { });
+
+		// Assert
+		response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+		var conteudo = await response.Content.ReadAsStringAsync();
+		conteudo.Should().Contain("já está matriculado");
+	}
+
+	[Fact]
+	public async Task AdicionarAluno_IdInvalido_DeveRetornarErro()
+	{
+		// Arrange
+		var (tokenProf, profId) = await CriarELogarProfessorAsync();
+		AdicionarTokenAutorizacao(tokenProf);
+
+		var turmaId = await CriarTurmaTeste(profId);
+
+		// Act
+		var response = await PostAsyncRaw($"/api/turmas/{turmaId}/alunos/99999", new { });
+
+		// Assert
+		response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+		var conteudo = await response.Content.ReadAsStringAsync();
+		conteudo.Should().Contain("Aluno não encontrado");
+	}
+
+	[Fact]
+	public async Task RemoverAluno_ComoProfessor_DevePermitir()
+	{
+		// Arrange
+		var (tokenProf, profId) = await CriarELogarProfessorAsync();
+		AdicionarTokenAutorizacao(tokenProf);
+
+		var aluno1Id = await CriarAlunoAsync("aluno.remover1@teste.com", "Aluno Remover 1");
+		var aluno2Id = await CriarAlunoAsync("aluno.remover2@teste.com", "Aluno Remover 2");
+		var turmaId = await CriarTurmaComAlunosAsync(profId, new List<int> { aluno1Id, aluno2Id });
+
+		// Act
+		var response = await DeleteAsync($"/api/turmas/{turmaId}/alunos/{aluno1Id}");
+
+		// Assert
+		response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var turmaAtualizada = await GetAsync<TurmaResponse>($"/api/turmas/{turmaId}");
+		turmaAtualizada!.TotalAlunos.Should().Be(1);
+		turmaAtualizada.Alunos.Should().NotContain(a => a.Id == aluno1Id);
+		turmaAtualizada.Alunos.Should().Contain(a => a.Id == aluno2Id);
+	}
+
+	[Fact]
+	public async Task RemoverAluno_AlunoNaoEstaNaTurma_DeveRetornarErro()
+	{
+		// Arrange
+		var (tokenProf, profId) = await CriarELogarProfessorAsync();
+		AdicionarTokenAutorizacao(tokenProf);
+
+		var turmaId = await CriarTurmaTeste(profId);
+		var alunoId = await CriarAlunoAsync("aluno.naopertence@teste.com", "Aluno Não Pertence");
+
+		// Act
+		var response = await DeleteAsync($"/api/turmas/{turmaId}/alunos/{alunoId}");
+
+		// Assert
+		response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+		var conteudo = await response.Content.ReadAsStringAsync();
+		conteudo.Should().Contain("não está matriculado");
+	}
+
+	[Fact]
+	public async Task RemoverAluno_RemoverUltimoAluno_DevePermitir()
+	{
+		// Arrange
+		var (tokenProf, profId) = await CriarELogarProfessorAsync();
+		AdicionarTokenAutorizacao(tokenProf);
+
+		var alunoId = await CriarAlunoAsync("aluno.ultimo@teste.com", "Aluno Último");
+		var turmaId = await CriarTurmaComAlunosAsync(profId, new List<int> { alunoId });
+
+		// Act
+		var response = await DeleteAsync($"/api/turmas/{turmaId}/alunos/{alunoId}");
+
+		// Assert
+		response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+		var turmaAtualizada = await GetAsync<TurmaResponse>($"/api/turmas/{turmaId}");
+		turmaAtualizada!.TotalAlunos.Should().Be(0);
+	}
+
+	#endregion
+
 	// Métodos auxiliares
 	private async Task<int> CriarTurmaTeste(int professorId)
 	{

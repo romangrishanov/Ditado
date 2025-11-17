@@ -182,6 +182,56 @@ public class TurmaService
 		return true;
 	}
 
+	/// <summary>
+	/// Adiciona um aluno a uma turma
+	/// </summary>
+	public async Task<TurmaResponse?> AdicionarAlunoAsync(int turmaId, int alunoId)
+	{
+		var turma = await _context.Turmas
+			.Include(t => t.Alunos)
+			.FirstOrDefaultAsync(t => t.Id == turmaId);
+
+		if (turma == null)
+			return null;
+
+		// Verificar se aluno existe e é realmente um aluno
+		var aluno = await _context.Usuarios.FindAsync(alunoId);
+		if (aluno == null || aluno.Tipo != TipoUsuario.Aluno)
+			throw new InvalidOperationException("Aluno não encontrado ou ID não corresponde a um aluno.");
+
+		// Verificar se já está na turma
+		if (turma.Alunos.Any(a => a.Id == alunoId))
+			throw new InvalidOperationException("Aluno já está matriculado nesta turma.");
+
+		turma.Alunos.Add(aluno);
+		await _context.SaveChangesAsync();
+
+		return await MapearParaResponseAsync(turma);
+	}
+
+	/// <summary>
+	/// Remove um aluno de uma turma
+	/// </summary>
+	public async Task<TurmaResponse?> RemoverAlunoAsync(int turmaId, int alunoId)
+	{
+		var turma = await _context.Turmas
+			.Include(t => t.Alunos)
+			.FirstOrDefaultAsync(t => t.Id == turmaId);
+
+		if (turma == null)
+			return null;
+
+		// Verificar se aluno está na turma
+		var aluno = turma.Alunos.FirstOrDefault(a => a.Id == alunoId);
+		if (aluno == null)
+			throw new InvalidOperationException("Aluno não está matriculado nesta turma.");
+
+		turma.Alunos.Remove(aluno);
+		await _context.SaveChangesAsync();
+
+		return await MapearParaResponseAsync(turma);
+	}
+
 	private async Task<TurmaResponse> MapearParaResponseAsync(Turma turma)
 	{
 		// Garantir que relacionamentos estão carregados
