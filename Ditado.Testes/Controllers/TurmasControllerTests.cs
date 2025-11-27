@@ -295,6 +295,117 @@ public class TurmasControllerTests : TesteIntegracaoBase
 
     #endregion
 
+    #region Listar Turmas por Aluno
+
+[Fact]
+public async Task ListarTurmasPorAluno_AlunoConsultaSuasProprias_DevePermitir()
+{
+	// Arrange
+	var (tokenProf, profId) = await CriarELogarProfessorAsync();
+	var alunoId = await CriarAlunoAsync("aluno.turmas1@teste.com", "Aluno Turmas 1");
+	
+	AdicionarTokenAutorizacao(tokenProf);
+	var turma1Id = await CriarTurmaComAlunosAsync(profId, new List<int> { alunoId });
+	var turma2Id = await CriarTurmaComAlunosAsync(profId, new List<int> { alunoId });
+
+	// Login como aluno
+	RemoverTokenAutorizacao();
+	var loginAluno = new LoginRequest { Login = "aluno.turmas1@teste.com", Senha = "senha123" };
+	var loginResponse = await PostAsync<LoginResponse>("/api/usuarios/login", loginAluno);
+	AdicionarTokenAutorizacao(loginResponse!.Token);
+
+	// Act
+	var response = await GetAsync<List<TurmaResponse>>($"/api/turmas/aluno/{alunoId}");
+
+	// Assert
+	response.Should().NotBeNull();
+	response!.Should().HaveCountGreaterOrEqualTo(2);
+	response.All(t => t.Alunos.Any(a => a.Id == alunoId)).Should().BeTrue();
+}
+
+[Fact]
+public async Task ListarTurmasPorAluno_AlunoTentaVerTurmasDeOutro_DeveNegar()
+{
+	// Arrange
+	var (tokenProf, profId) = await CriarELogarProfessorAsync();
+	var aluno1Id = await CriarAlunoAsync("aluno.ver1@teste.com", "Aluno Ver 1");
+	var aluno2Id = await CriarAlunoAsync("aluno.ver2@teste.com", "Aluno Ver 2");
+
+	// Login como aluno 1
+	RemoverTokenAutorizacao();
+	var loginAluno = new LoginRequest { Login = "aluno.ver1@teste.com", Senha = "senha123" };
+	var loginResponse = await PostAsync<LoginResponse>("/api/usuarios/login", loginAluno);
+	AdicionarTokenAutorizacao(loginResponse!.Token);
+
+	// Act - Tenta ver turmas do aluno 2
+	var response = await GetAsyncRaw($"/api/turmas/aluno/{aluno2Id}");
+
+	// Assert
+	response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+	var conteudo = await response.Content.ReadAsStringAsync();
+	conteudo.Should().Contain("só pode visualizar suas próprias turmas");
+}
+
+[Fact]
+public async Task ListarTurmasPorAluno_ProfessorConsultaTurmasDeQualquerAluno_DevePermitir()
+{
+	// Arrange
+	var (tokenProf, profId) = await CriarELogarProfessorAsync();
+	var alunoId = await CriarAlunoAsync("aluno.prof@teste.com", "Aluno Prof");
+	
+	AdicionarTokenAutorizacao(tokenProf);
+	await CriarTurmaComAlunosAsync(profId, new List<int> { alunoId });
+
+	// Act
+	var response = await GetAsync<List<TurmaResponse>>($"/api/turmas/aluno/{alunoId}");
+
+	// Assert
+	response.Should().NotBeNull();
+	response!.Should().HaveCountGreaterOrEqualTo(1);
+	response.All(t => t.Alunos.Any(a => a.Id == alunoId)).Should().BeTrue();
+}
+
+[Fact]
+public async Task ListarTurmasPorAluno_AdminConsultaTurmasDeQualquerAluno_DevePermitir()
+{
+	// Arrange
+	var tokenAdmin = await ObterTokenAdminAsync();
+	var (_, profId) = await CriarELogarProfessorAsync();
+	
+	AdicionarTokenAutorizacao(tokenAdmin);
+	var alunoId = await CriarAlunoAsync("aluno.admin@teste.com", "Aluno Admin");
+	await CriarTurmaComAlunosAsync(profId, new List<int> { alunoId });
+
+	// Act
+	var response = await GetAsync<List<TurmaResponse>>($"/api/turmas/aluno/{alunoId}");
+
+	// Assert
+	response.Should().NotBeNull();
+	response!.Should().HaveCountGreaterOrEqualTo(1);
+}
+
+[Fact]
+public async Task ListarTurmasPorAluno_AlunoSemTurmas_DeveRetornarListaVazia()
+{
+	// Arrange
+	var alunoId = await CriarAlunoAsync("aluno.sem.turmas@teste.com", "Aluno Sem Turmas");
+
+	// Login como aluno
+	RemoverTokenAutorizacao();
+	var loginAluno = new LoginRequest { Login = "aluno.sem.turmas@teste.com", Senha = "senha123" };
+	var loginResponse = await PostAsync<LoginResponse>("/api/usuarios/login", loginAluno);
+	AdicionarTokenAutorizacao(loginResponse!.Token);
+
+	// Act
+	var response = await GetAsync<List<TurmaResponse>>($"/api/turmas/aluno/{alunoId}");
+
+	// Assert
+	response.Should().NotBeNull();
+	response!.Should().BeEmpty();
+}
+
+#endregion
+
     #region Atualizar Turmas
 
     [Fact]

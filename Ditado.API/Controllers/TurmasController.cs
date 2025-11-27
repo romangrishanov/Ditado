@@ -136,6 +136,43 @@ public class TurmasController : ControllerBase
     }
 
     /// <summary>
+    /// Lista turmas de um aluno específico
+    /// </summary>
+    /// <remarks>
+    /// Retorna todas as turmas onde o aluno especificado está matriculado.
+    /// 
+    /// **Permissões:**
+    /// - **Aluno**: Pode consultar apenas suas próprias turmas
+    /// - **Professor/Admin**: Podem consultar turmas de qualquer aluno
+    /// 
+    /// Retorna apenas turmas ativas.
+    /// </remarks>
+    /// <param name="alunoId">ID do aluno</param>
+    /// <returns>Lista de turmas do aluno</returns>
+    /// <response code="200">Lista de turmas retornada com sucesso</response>
+    /// <response code="401">Não autenticado</response>
+    /// <response code="403">Sem permissão (aluno tentando ver turmas de outro aluno)</response>
+    [HttpGet("aluno/{alunoId}")]
+    [Authorize(Roles = "Administrador,Professor,Aluno")]
+    [ProducesResponseType(typeof(List<TurmaResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<List<TurmaResponse>>> ListarTurmasPorAluno(int alunoId)
+    {
+        // Validar permissão: Aluno só pode ver suas próprias turmas
+        var usuarioLogadoId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var tipoUsuarioLogado = Enum.Parse<TipoUsuario>(User.FindFirst(ClaimTypes.Role)?.Value ?? "Aluno");
+
+        if (tipoUsuarioLogado == TipoUsuario.Aluno && usuarioLogadoId != alunoId)
+        {
+            return StatusCode(403, new { mensagem = "Você só pode visualizar suas próprias turmas." });
+        }
+
+        var turmas = await _turmaService.ListarTurmasPorAlunoAsync(alunoId);
+        return Ok(turmas);
+    }
+
+    /// <summary>
     /// Atualiza uma turma existente
     /// </summary>
     /// <remarks>

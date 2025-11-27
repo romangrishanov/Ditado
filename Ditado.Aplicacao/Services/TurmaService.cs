@@ -104,6 +104,28 @@ public class TurmaService
 		return responses;
 	}
 
+	/// <summary>
+	/// Lista turmas de um aluno específico
+	/// </summary>
+	public async Task<List<TurmaResponse>> ListarTurmasPorAlunoAsync(int alunoId)
+	{
+		var turmas = await _context.Turmas
+			.Include(t => t.ProfessorResponsavel)
+			.Include(t => t.Alunos)
+			.Where(t => t.Alunos.Any(a => a.Id == alunoId) && t.Ativo)
+			.OrderBy(t => t.Serie)
+			.ThenBy(t => t.Nome)
+			.ToListAsync();
+
+		var responses = new List<TurmaResponse>();
+		foreach (var turma in turmas)
+		{
+			responses.Add(await MapearParaResponseAsync(turma));
+		}
+
+		return responses;
+	}
+
 	public async Task<TurmaResponse?> AtualizarTurmaAsync(int id, AtualizarTurmaRequest request)
 	{
 		var turma = await _context.Turmas
