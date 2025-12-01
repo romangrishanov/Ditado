@@ -289,14 +289,14 @@ public class UsuariosController : ControllerBase
 	/// </summary>
 	/// <remarks>
 	/// Retorna uma lista completa de todos os usuários cadastrados no sistema.
-	/// Apenas Administradores podem acessar este endpoint.
+	/// Administradores e Professores podem acessar este endpoint.
 	/// </remarks>
 	/// <returns>Lista de usuários</returns>
 	/// <response code="200">Lista retornada com sucesso</response>
 	/// <response code="401">Não autenticado</response>
-	/// <response code="403">Sem permissão (apenas Administrador)</response>
+	/// <response code="403">Sem permissão (apenas Administrador e Professor)</response>
 	[HttpGet]
-	[Authorize(Roles = "Administrador")]
+	[Authorize(Roles = "Administrador,Professor")]
 	[ProducesResponseType(typeof(List<UsuarioResponse>), StatusCodes.Status200OK)]
 	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
 	[ProducesResponseType(StatusCodes.Status403Forbidden)]
