@@ -126,7 +126,7 @@ public class UsuariosControllerTests : TesteIntegracaoBase
 
         // Assert
         response.Should().NotBeNull();
-        response!.Should().HaveCountGreaterOrEqualTo(2);
+        response!.Should().HaveCountGreaterThanOrEqualTo(2);
         response.All(u => u.Tipo == "AcessoSolicitado").Should().BeTrue();
         response.All(u => !u.Ativo).Should().BeTrue();
     }

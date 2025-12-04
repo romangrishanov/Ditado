@@ -254,7 +254,7 @@ public class DitadosControllerTests : TesteIntegracaoBase
 
 		// Assert
 		response.Should().NotBeNull();
-		response!.Should().HaveCountGreaterOrEqualTo(2);
+		response!.Should().HaveCountGreaterThanOrEqualTo(2);
 		response.All(d => d.Id > 0).Should().BeTrue();
 		response.All(d => !string.IsNullOrEmpty(d.Titulo)).Should().BeTrue();
 	}

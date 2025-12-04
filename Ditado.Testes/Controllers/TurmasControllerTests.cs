@@ -270,7 +270,7 @@ public class TurmasControllerTests : TesteIntegracaoBase
 
         // Assert
         response.Should().NotBeNull();
-        response!.Should().HaveCountGreaterOrEqualTo(2);
+        response!.Should().HaveCountGreaterThanOrEqualTo(2);
         response.All(t => t.Ativo).Should().BeTrue();
     }
 
@@ -289,7 +289,7 @@ public class TurmasControllerTests : TesteIntegracaoBase
 
         // Assert
         response.Should().NotBeNull();
-        response!.Should().HaveCountGreaterOrEqualTo(2);
+        response!.Should().HaveCountGreaterThanOrEqualTo(2);
         response.All(t => t.ProfessorResponsavelId == profId).Should().BeTrue();
     }
 
@@ -319,7 +319,7 @@ public async Task ListarTurmasPorAluno_AlunoConsultaSuasProprias_DevePermitir()
 
 	// Assert
 	response.Should().NotBeNull();
-	response!.Should().HaveCountGreaterOrEqualTo(2);
+	response!.Should().HaveCountGreaterThanOrEqualTo(2);
 	response.All(t => t.Alunos.Any(a => a.Id == alunoId)).Should().BeTrue();
 }
 
@@ -361,7 +361,7 @@ public async Task ListarTurmasPorAluno_ProfessorConsultaTurmasDeQualquerAluno_De
 
 	// Assert
 	response.Should().NotBeNull();
-	response!.Should().HaveCountGreaterOrEqualTo(1);
+	response!.Should().HaveCountGreaterThanOrEqualTo(1);
 	response.All(t => t.Alunos.Any(a => a.Id == alunoId)).Should().BeTrue();
 }
 
@@ -381,7 +381,7 @@ public async Task ListarTurmasPorAluno_AdminConsultaTurmasDeQualquerAluno_DevePe
 
 	// Assert
 	response.Should().NotBeNull();
-	response!.Should().HaveCountGreaterOrEqualTo(1);
+	response!.Should().HaveCountGreaterThanOrEqualTo(1);
 }
 
 [Fact]
