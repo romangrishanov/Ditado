@@ -28,6 +28,14 @@ public class DitadoConfiguration : IEntityTypeConfiguration<Dominio.Entidades.Di
         builder.Property(d => d.Ativo)
             .IsRequired();
         
+        builder.Property(d => d.AutorId)
+            .IsRequired(false);
+        
+        builder.HasOne(d => d.Autor)
+            .WithMany()
+            .HasForeignKey(d => d.AutorId)
+            .OnDelete(DeleteBehavior.SetNull);
+        
         builder.HasMany(d => d.Segmentos)
             .WithOne(s => s.Ditado)
             .HasForeignKey(s => s.DitadoId)
@@ -36,6 +44,11 @@ public class DitadoConfiguration : IEntityTypeConfiguration<Dominio.Entidades.Di
         builder.HasMany(d => d.Respostas)
             .WithOne(r => r.Ditado)
             .HasForeignKey(r => r.DitadoId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        builder.HasMany(d => d.DitadoCategorias)
+            .WithOne(dc => dc.Ditado)
+            .HasForeignKey(dc => dc.DitadoId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -3,7 +3,7 @@ namespace Ditado.Aplicacao.DTOs;
 public class ResultadoDitadoResponse
 {
     public int RespostaDitadoId { get; set; }
-    public decimal Pontuacao { get; set; }
+    public decimal Nota { get; set; }
     public int TotalLacunas { get; set; }
     public int Acertos { get; set; }
     public int Erros { get; set; }

@@ -373,4 +373,95 @@ public class TurmasController : ControllerBase
 			return BadRequest(new { mensagem = ex.Message });
 		}
 	}
+
+	/// <summary>
+	/// Atribui um ditado a uma turma
+	/// </summary>
+	/// <remarks>
+	/// Apenas Professores e Administradores podem atribuir ditados.
+	/// 
+	/// **Exemplo de requisição:**
+	/// 
+	///     POST /api/turmas/5/ditados
+	///     {
+	///        "ditadoId": 10,
+	///        "dataLimite": "2024-12-31T23:59:59"
+	///     }
+	/// </remarks>
+	/// <param name="id">ID da turma</param>
+	/// <param name="request">Dados da atribuição</param>
+	/// <response code="204">Ditado atribuído com sucesso</response>
+	/// <response code="400">Dados inválidos (ditado já atribuído, etc.)</response>
+	/// <response code="401">Não autenticado</response>
+	/// <response code="403">Sem permissão</response>
+	/// <response code="404">Turma não encontrada</response>
+	[HttpPost("{id}/ditados")]
+	[Authorize(Roles = "Administrador,Professor")]
+	[ProducesResponseType(StatusCodes.Status204NoContent)]
+	[ProducesResponseType(StatusCodes.Status400BadRequest)]
+	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(StatusCodes.Status403Forbidden)]
+	[ProducesResponseType(StatusCodes.Status404NotFound)]
+	public async Task<ActionResult> AtribuirDitado(int id, [FromBody] AtribuirDitadoRequest request)
+	{
+		try
+		{
+			var sucesso = await _turmaService.AtribuirDitadoAsync(id, request);
+
+			if (!sucesso)
+				return NotFound(new { mensagem = "Turma não encontrada." });
+
+			return NoContent();
+		}
+		catch (InvalidOperationException ex)
+		{
+			return BadRequest(new { mensagem = ex.Message });
+		}
+	}
+
+	/// <summary>
+	/// Atualiza a data limite de um ditado atribuído
+	/// </summary>
+	/// <param name="id">ID da turma</param>
+	/// <param name="ditadoId">ID do ditado</param>
+	/// <param name="request">Nova data limite</param>
+	/// <response code="204">Data limite atualizada</response>
+	/// <response code="404">Atribuição não encontrada</response>
+	[HttpPut("{id}/ditados/{ditadoId}")]
+	[Authorize(Roles = "Administrador,Professor")]
+	[ProducesResponseType(StatusCodes.Status204NoContent)]
+	[ProducesResponseType(StatusCodes.Status404NotFound)]
+	public async Task<ActionResult> AtualizarAtribuicao(int id, int ditadoId, [FromBody] AtualizarAtribuicaoRequest request)
+	{
+	var sucesso = await _turmaService.AtualizarAtribuicaoAsync(id, ditadoId, request);
+
+	if (!sucesso)
+		return NotFound(new { mensagem = "Atribuição não encontrada." });
+
+	return NoContent();
+}
+
+	/// <summary>
+	/// Remove atribuição de ditado de uma turma
+	/// </summary>
+	/// <remarks>
+	/// **ATENÇÃO:** Alunos ainda poderão ver suas tentativas anteriores mesmo após remover a atribuição.
+	/// </remarks>
+	/// <param name="id">ID da turma</param>
+	/// <param name="ditadoId">ID do ditado</param>
+	/// <response code="204">Atribuição removida</response>
+	/// <response code="404">Atribuição não encontrada</response>
+	[HttpDelete("{id}/ditados/{ditadoId}")]
+	[Authorize(Roles = "Administrador,Professor")]
+	[ProducesResponseType(StatusCodes.Status204NoContent)]
+	[ProducesResponseType(StatusCodes.Status404NotFound)]
+	public async Task<ActionResult> RemoverAtribuicao(int id, int ditadoId)
+	{
+	var sucesso = await _turmaService.RemoverAtribuicaoAsync(id, ditadoId);
+
+	if (!sucesso)
+		return NotFound(new { mensagem = "Atribuição não encontrada." });
+
+	return NoContent();
+}
 }

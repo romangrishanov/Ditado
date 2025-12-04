@@ -108,10 +108,12 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 // Application Services
-builder.Services.AddScoped<DitadoService>();
 builder.Services.AddScoped<UsuarioService>();
+builder.Services.AddScoped<DitadoService>();
 builder.Services.AddScoped<TurmaService>();
-builder.Services.AddSingleton<PasswordHasher>();
+builder.Services.AddScoped<CategoriaService>();
+builder.Services.AddScoped<AlunoService>();
+builder.Services.AddScoped<PasswordHasher>();
 builder.Services.AddScoped<TokenService>();
 
 var app = builder.Build();

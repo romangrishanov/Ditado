@@ -138,7 +138,7 @@ public class DitadosControllerTests : TesteIntegracaoBase
 
 		// Assert
 		response.Should().NotBeNull();
-		response!.Pontuacao.Should().Be(100);
+		response!.Nota.Should().Be(100);
 		response.TotalLacunas.Should().Be(2);
 		response.Acertos.Should().Be(2);
 		response.Erros.Should().Be(0);
@@ -171,7 +171,7 @@ public class DitadosControllerTests : TesteIntegracaoBase
 
 		// Assert
 		response.Should().NotBeNull();
-		response!.Pontuacao.Should().Be(50);
+		response!.Nota.Should().Be(50);
 		response.Acertos.Should().Be(1);
 		response.Erros.Should().Be(1);
 
@@ -318,7 +318,7 @@ public class DitadosControllerTests : TesteIntegracaoBase
 		};
 
 		var resultado = await PostAsync<ResultadoDitadoResponse>($"/api/ditados/{response.Id}/submeter", respostaRequest);
-		resultado!.Pontuacao.Should().Be(100);
+		resultado!.Nota.Should().Be(100);
 	}
 
 	// Métodos auxiliares privados

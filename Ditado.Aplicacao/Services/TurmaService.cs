@@ -254,6 +254,65 @@ public class TurmaService
 		return await MapearParaResponseAsync(turma);
 	}
 
+	public async Task<bool> AtribuirDitadoAsync(int turmaId, AtribuirDitadoRequest request)
+	{
+		var turma = await _context.Turmas.FindAsync(turmaId);
+		if (turma == null)
+			return false;
+
+		var ditado = await _context.Ditados.FindAsync(request.DitadoId);
+		if (ditado == null)
+			throw new InvalidOperationException("Ditado não encontrado.");
+
+		// Verifica se já existe
+		var jaAtribuido = await _context.TurmaDitados
+			.AnyAsync(td => td.TurmaId == turmaId && td.DitadoId == request.DitadoId);
+
+		if (jaAtribuido)
+			throw new InvalidOperationException("Este ditado já está atribuído a esta turma.");
+
+		var turmaDitado = new TurmaDitado
+		{
+			TurmaId = turmaId,
+			DitadoId = request.DitadoId,
+			DataAtribuicao = DateTime.UtcNow,
+			DataLimite = request.DataLimite
+		};
+
+		_context.TurmaDitados.Add(turmaDitado);
+		await _context.SaveChangesAsync();
+
+		return true;
+	}
+
+	public async Task<bool> AtualizarAtribuicaoAsync(int turmaId, int ditadoId, AtualizarAtribuicaoRequest request)
+	{
+		var turmaDitado = await _context.TurmaDitados
+			.FirstOrDefaultAsync(td => td.TurmaId == turmaId && td.DitadoId == ditadoId);
+
+		if (turmaDitado == null)
+			return false;
+
+		turmaDitado.DataLimite = request.DataLimite;
+		await _context.SaveChangesAsync();
+
+		return true;
+	}
+
+	public async Task<bool> RemoverAtribuicaoAsync(int turmaId, int ditadoId)
+	{
+		var turmaDitado = await _context.TurmaDitados
+			.FirstOrDefaultAsync(td => td.TurmaId == turmaId && td.DitadoId == ditadoId);
+
+		if (turmaDitado == null)
+			return false;
+
+		_context.TurmaDitados.Remove(turmaDitado);
+		await _context.SaveChangesAsync();
+
+		return true;
+	}
+
 	private async Task<TurmaResponse> MapearParaResponseAsync(Turma turma)
 	{
 		// Garantir que relacionamentos estão carregados

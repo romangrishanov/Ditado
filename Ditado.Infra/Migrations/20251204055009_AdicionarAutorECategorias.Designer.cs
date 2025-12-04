@@ -4,6 +4,7 @@ using Ditado.Infra.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Ditado.Infra.Migrations
 {
     [DbContext(typeof(DitadoDbContext))]
-    partial class DitadoDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251204055009_AdicionarAutorECategorias")]
+    partial class AdicionarAutorECategorias
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -139,16 +142,13 @@ namespace Ditado.Infra.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("AlunoId")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("DataRealizacao")
                         .HasColumnType("datetime(6)");
 
                     b.Property<int>("DitadoId")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("Nota")
+                    b.Property<decimal>("Pontuacao")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
 
@@ -156,9 +156,7 @@ namespace Ditado.Infra.Migrations
 
                     b.HasIndex("DitadoId");
 
-                    b.HasIndex("AlunoId", "DitadoId", "DataRealizacao");
-
-                    b.ToTable("RespostasDitados", (string)null);
+                    b.ToTable("RespostaDitados", (string)null);
                 });
 
             modelBuilder.Entity("Ditado.Dominio.Entidades.RespostaSegmento", b =>
@@ -236,27 +234,6 @@ namespace Ditado.Infra.Migrations
                     b.HasIndex("ProfessorResponsavelId");
 
                     b.ToTable("Turmas", (string)null);
-                });
-
-            modelBuilder.Entity("Ditado.Dominio.Entidades.TurmaDitado", b =>
-                {
-                    b.Property<int>("TurmaId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("DitadoId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("DataAtribuicao")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime>("DataLimite")
-                        .HasColumnType("datetime(6)");
-
-                    b.HasKey("TurmaId", "DitadoId");
-
-                    b.HasIndex("DitadoId");
-
-                    b.ToTable("TurmaDitados", (string)null);
                 });
 
             modelBuilder.Entity("Ditado.Dominio.Entidades.Usuario", b =>
@@ -363,19 +340,11 @@ namespace Ditado.Infra.Migrations
 
             modelBuilder.Entity("Ditado.Dominio.Entidades.RespostaDitado", b =>
                 {
-                    b.HasOne("Ditado.Dominio.Entidades.Usuario", "Aluno")
-                        .WithMany()
-                        .HasForeignKey("AlunoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("Ditado.Dominio.Entidades.Ditado", "Ditado")
                         .WithMany("Respostas")
                         .HasForeignKey("DitadoId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Aluno");
 
                     b.Navigation("Ditado");
                 });
@@ -410,25 +379,6 @@ namespace Ditado.Infra.Migrations
                     b.Navigation("ProfessorResponsavel");
                 });
 
-            modelBuilder.Entity("Ditado.Dominio.Entidades.TurmaDitado", b =>
-                {
-                    b.HasOne("Ditado.Dominio.Entidades.Ditado", "Ditado")
-                        .WithMany("TurmaDitados")
-                        .HasForeignKey("DitadoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Ditado.Dominio.Entidades.Turma", "Turma")
-                        .WithMany("TurmaDitados")
-                        .HasForeignKey("TurmaId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Ditado");
-
-                    b.Navigation("Turma");
-                });
-
             modelBuilder.Entity("TurmaAluno", b =>
                 {
                     b.HasOne("Ditado.Dominio.Entidades.Usuario", null)
@@ -456,8 +406,6 @@ namespace Ditado.Infra.Migrations
                     b.Navigation("Respostas");
 
                     b.Navigation("Segmentos");
-
-                    b.Navigation("TurmaDitados");
                 });
 
             modelBuilder.Entity("Ditado.Dominio.Entidades.DitadoSegmento", b =>
@@ -468,11 +416,6 @@ namespace Ditado.Infra.Migrations
             modelBuilder.Entity("Ditado.Dominio.Entidades.RespostaDitado", b =>
                 {
                     b.Navigation("RespostasSegmentos");
-                });
-
-            modelBuilder.Entity("Ditado.Dominio.Entidades.Turma", b =>
-                {
-                    b.Navigation("TurmaDitados");
                 });
 
             modelBuilder.Entity("Ditado.Dominio.Entidades.Usuario", b =>

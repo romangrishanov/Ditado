@@ -4,6 +4,7 @@ using Ditado.Infra.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Ditado.Infra.Migrations
 {
     [DbContext(typeof(DitadoDbContext))]
-    partial class DitadoDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251204063134_AtribuicaoDitadosTurmas")]
+    partial class AtribuicaoDitadosTurmas
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -148,7 +151,7 @@ namespace Ditado.Infra.Migrations
                     b.Property<int>("DitadoId")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("Nota")
+                    b.Property<decimal>("Pontuacao")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
 

@@ -6,4 +6,5 @@ public class CriarDitadoRequest
     public string? Descricao { get; set; }
     public string TextoComMarcacoes { get; set; } = string.Empty;
     public string AudioBase64 { get; set; } = string.Empty;
+    public List<int> CategoriaIds { get; set; } = new();
 }

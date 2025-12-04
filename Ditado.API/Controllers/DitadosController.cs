@@ -61,7 +61,8 @@ public class DitadosController : ControllerBase
 	[ProducesResponseType(StatusCodes.Status403Forbidden)]
 	public async Task<ActionResult<DitadoResponse>> CriarDitado([FromBody] CriarDitadoRequest request)
 	{
-		var resultado = await _ditadoService.CriarDitadoAsync(request);
+		var usuarioId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+		var resultado = await _ditadoService.CriarDitadoAsync(request, usuarioId);
 		return CreatedAtAction(nameof(ObterDitadoParaRealizar), new { id = resultado.Id }, resultado);
 	}
 
@@ -69,14 +70,22 @@ public class DitadosController : ControllerBase
 	/// Lista todos os ditados disponíveis
 	/// </summary>
 	/// <remarks>
-	/// Retorna uma lista de todos os ditados cadastrados no sistema.
-	/// Qualquer usuário autenticado pode acessar este endpoint.
+	/// Retorna uma lista de ditados com diferentes visibilidades por perfil:
 	/// 
-	/// A lista contém informações resumidas dos ditados:
+	/// **Administrador/Professor:**
+	/// - Vê todos os ditados cadastrados no sistema
+	/// 
+	/// **Aluno:**
+	/// - Vê apenas ditados atribuídos às suas turmas
+	/// - Não vê ditados não atribuídos
+	/// 
+	/// **Informações retornadas:**
 	/// - ID, Título, Descrição
+	/// - Autor do ditado
+	/// - Categorias associadas
 	/// - Data de criação
 	/// 
-	/// Não inclui o conteúdo completo nem o áudio.
+	/// **Não inclui:** Conteúdo completo nem áudio.
 	/// </remarks>
 	/// <returns>Lista de ditados</returns>
 	/// <response code="200">Lista retornada com sucesso</response>
@@ -95,7 +104,11 @@ public class DitadosController : ControllerBase
 	/// Obtém um ditado para realização
 	/// </summary>
 	/// <remarks>
-	/// Retorna o ditado formatado para o aluno realizar:
+	/// Retorna o ditado formatado para o aluno realizar.
+	/// 
+	/// **Permissões:**
+	/// - **Administrador/Professor**: Podem acessar qualquer ditado
+	/// - **Aluno**: Pode acessar apenas ditados atribuídos às suas turmas
 	/// 
 	/// **O que é retornado:**
 	/// - Título do ditado
@@ -127,11 +140,13 @@ public class DitadosController : ControllerBase
 	/// <returns>Ditado pronto para ser realizado</returns>
 	/// <response code="200">Ditado encontrado</response>
 	/// <response code="401">Não autenticado</response>
+	/// <response code="403">Aluno tentando acessar ditado não atribuído à sua turma</response>
 	/// <response code="404">Ditado não encontrado</response>
 	[HttpGet("{id}/realizar")]
 	[Authorize(Roles = "Administrador,Professor,Aluno")]
 	[ProducesResponseType(typeof(DitadoParaRealizarResponse), StatusCodes.Status200OK)]
 	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(StatusCodes.Status403Forbidden)]
 	[ProducesResponseType(StatusCodes.Status404NotFound)]
 	public async Task<ActionResult<DitadoParaRealizarResponse>> ObterDitadoParaRealizar(int id)
 	{
@@ -151,8 +166,17 @@ public class DitadosController : ControllerBase
 	/// 1. Recebe as respostas do aluno (apenas para os segmentos tipo "Lacuna")
 	/// 2. Compara com as respostas esperadas (palavras que estavam entre colchetes)
 	/// 3. Classifica os erros
-	/// 4. Calcula a pontuação (0-100)
+	/// 4. Calcula a nota (0-100)
 	/// 5. Retorna o resultado detalhado com feedback para cada lacuna
+	/// 
+	/// **Permissões:**
+	/// - **Aluno**: Pode submeter apenas ditados atribuídos às suas turmas
+	/// - **Professor/Admin**: Podem submeter qualquer ditado (para testes)
+	/// 
+	/// **Observação importante:**
+	/// - O aluno pode refazer o mesmo ditado múltiplas vezes
+	/// - Todas as tentativas ficam registradas
+	/// - Não há limite de tentativas
 	/// 
 	/// **Exemplo de requisição:**
 	/// 
@@ -161,11 +185,11 @@ public class DitadosController : ControllerBase
 	///        "respostas": [
 	///           {
 	///              "segmentoId": 2,
-	///              "respostaAluno": "cachoro"
+	///              "resposta": "cachoro"
 	///           },
 	///           {
 	///              "segmentoId": 4,
-	///              "respostaAluno": "gata"
+	///              "resposta": "gata"
 	///           }
 	///        ]
 	///     }
@@ -174,7 +198,7 @@ public class DitadosController : ControllerBase
 	/// 
 	///     {
 	///        "respostaDitadoId": 15,
-	///        "pontuacao": 50.0,
+	///        "nota": 50.0,
 	///        "totalLacunas": 2,
 	///        "acertos": 1,
 	///        "erros": 1,
@@ -182,7 +206,7 @@ public class DitadosController : ControllerBase
 	///           {
 	///              "segmentoId": 2,
 	///              "ordem": 2,
-	///              "respostaAluno": "cachoro",
+	///              "respostaFornecida": "cachoro",
 	///              "respostaEsperada": "cachorro",
 	///              "correto": false,
 	///              "tipoErro": "Ortografico"
@@ -190,10 +214,10 @@ public class DitadosController : ControllerBase
 	///           {
 	///              "segmentoId": 4,
 	///              "ordem": 4,
-	///              "respostaAluno": "gata",
+	///              "respostaFornecida": "gata",
 	///              "respostaEsperada": "gata",
 	///              "correto": true,
-	///              "tipoErro": "Nenhum"
+	///              "tipoErro": null
 	///           }
 	///        ]
 	///     }
@@ -210,20 +234,117 @@ public class DitadosController : ControllerBase
 	/// <response code="200">Respostas corrigidas com sucesso</response>
 	/// <response code="400">Dados inválidos (segmento não existe, etc.)</response>
 	/// <response code="401">Não autenticado</response>
+	/// <response code="403">Aluno tentando submeter ditado não atribuído à sua turma</response>
 	/// <response code="404">Ditado não encontrado</response>
 	[HttpPost("{id}/submeter")]
 	[Authorize(Roles = "Administrador,Professor,Aluno")]
 	[ProducesResponseType(typeof(ResultadoDitadoResponse), StatusCodes.Status200OK)]
 	[ProducesResponseType(StatusCodes.Status400BadRequest)]
 	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(StatusCodes.Status403Forbidden)]
 	[ProducesResponseType(StatusCodes.Status404NotFound)]
 	public async Task<ActionResult<ResultadoDitadoResponse>> SubmeterResposta(int id, [FromBody] SubmeterRespostaRequest request)
 	{
-		var resultado = await _ditadoService.SubmeterRespostaAsync(id, request);
+		var alunoId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+		var resultado = await _ditadoService.SubmeterRespostaAsync(id, request, alunoId);
 
 		if (resultado == null)
 			return NotFound(new { mensagem = "Ditado não encontrado." });
 
 		return Ok(resultado);
+	}
+
+	/// <summary>
+	/// Atualiza um ditado
+	/// </summary>
+	/// <remarks>
+	/// Permite atualizar informações do ditado, incluindo suas categorias.
+	/// Apenas Administradores e Professores podem atualizar.
+	/// 
+	/// **Exemplo de requisição:**
+	/// 
+	///     PUT /api/ditados/5
+	///     {
+	///        "titulo": "Ditado sobre animais - Atualizado",
+	///        "descricao": "Descrição atualizada",
+	///        "categoriaIds": [1, 3, 5],
+	///        "ativo": true
+	///     }
+	/// </remarks>
+	/// <param name="id">ID do ditado</param>
+	/// <param name="request">Dados atualizados</param>
+	/// <returns>Ditado atualizado</returns>
+	/// <response code="200">Ditado atualizado com sucesso</response>
+	/// <response code="400">Dados inválidos</response>
+	/// <response code="401">Não autenticado</response>
+	/// <response code="403">Sem permissão (apenas Admin e Professor)</response>
+	/// <response code="404">Ditado não encontrado</response>
+	[HttpPut("{id}")]
+	[Authorize(Roles = "Administrador,Professor")]
+	[ProducesResponseType(typeof(DitadoResponse), StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status400BadRequest)]
+	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(StatusCodes.Status403Forbidden)]
+	[ProducesResponseType(StatusCodes.Status404NotFound)]
+	public async Task<ActionResult<DitadoResponse>> AtualizarDitado(int id, [FromBody] AtualizarDitadoRequest request)
+	{
+		try
+		{
+			var ditado = await _ditadoService.AtualizarDitadoAsync(id, request);
+
+			if (ditado == null)
+				return NotFound(new { mensagem = "Ditado não encontrado." });
+
+			return Ok(ditado);
+		}
+		catch (InvalidOperationException ex)
+		{
+			return BadRequest(new { mensagem = ex.Message });
+		}
+	}
+
+	/// <summary>
+	/// Exclui um ditado permanentemente
+	/// </summary>
+	/// <remarks>
+	/// Remove um ditado do sistema de forma irreversível.
+	/// 
+	/// **Permissões:**
+	/// - **Administrador**: Pode excluir qualquer ditado
+	/// - **Professor**: Pode excluir apenas ditados que ele mesmo criou
+	/// - **Aluno**: Não pode excluir ditados
+	/// 
+	/// **ATENÇÃO**: Esta operação é permanente e não pode ser desfeita!
+	/// Considere desativar o ditado ao invés de excluir para manter o histórico.
+	/// </remarks>
+	/// <param name="id">ID do ditado</param>
+	/// <response code="204">Ditado excluído com sucesso</response>
+	/// <response code="401">Não autenticado</response>
+	/// <response code="403">Sem permissão (apenas autor ou Admin)</response>
+	/// <response code="404">Ditado não encontrado</response>
+	[HttpDelete("{id}")]
+	[Authorize(Roles = "Administrador,Professor")]
+	[ProducesResponseType(StatusCodes.Status204NoContent)]
+	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(StatusCodes.Status403Forbidden)]
+	[ProducesResponseType(StatusCodes.Status404NotFound)]
+	public async Task<ActionResult> DeletarDitado(int id)
+	{
+		try
+		{
+			var usuarioId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+			var tipoUsuario = Enum.Parse<Dominio.Enums.TipoUsuario>(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Aluno");
+
+			var sucesso = await _ditadoService.DeletarDitadoAsync(id, usuarioId, tipoUsuario);
+
+			if (!sucesso)
+				return NotFound(new { mensagem = "Ditado não encontrado." });
+
+			return NoContent();
+		}
+		catch (InvalidOperationException ex)
+		{
+			return Forbid();
+		}
 	}
 }

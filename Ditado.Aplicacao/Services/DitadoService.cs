@@ -10,13 +10,15 @@ namespace Ditado.Aplicacao.Services;
 public class DitadoService
 {
 	private readonly DitadoDbContext _context;
+	private readonly CategoriaService _categoriaService; // Adicionado para gerenciar categorias
 
-	public DitadoService(DitadoDbContext context)
+	public DitadoService(DitadoDbContext context, CategoriaService categoriaService)
 	{
 		_context = context;
+		_categoriaService = categoriaService;
 	}
 
-	public async Task<DitadoResponse> CriarDitadoAsync(CriarDitadoRequest request)
+	public async Task<DitadoResponse> CriarDitadoAsync(CriarDitadoRequest request, int autorId)
 	{
 		var segmentos = ParsearTextoComLacunas(request.TextoComMarcacoes);
 		var audioDados = ExtrairAudioDeBase64(request.AudioBase64);
@@ -28,19 +30,32 @@ public class DitadoService
 			AudioLeitura = audioDados,
 			DataCriacao = DateTime.UtcNow,
 			Ativo = true,
+			AutorId = autorId,
 			Segmentos = segmentos
 		};
 
 		_context.Ditados.Add(ditado);
 		await _context.SaveChangesAsync();
 
-		return new DitadoResponse
+		// ADICIONAR: Associar categorias ao ditado
+		if (request.CategoriaIds != null && request.CategoriaIds.Any())
 		{
-			Id = ditado.Id,
-			Titulo = ditado.Titulo,
-			Descricao = ditado.Descricao,
-			DataCriacao = ditado.DataCriacao
-		};
+			await _categoriaService.ValidarCategoriasAsync(request.CategoriaIds);
+
+			foreach (var categoriaId in request.CategoriaIds.Distinct())
+			{
+				_context.DitadoCategorias.Add(new DitadoCategoria
+				{
+					DitadoId = ditado.Id,
+					CategoriaId = categoriaId,
+					DataAssociacao = DateTime.UtcNow
+				});
+			}
+
+			await _context.SaveChangesAsync();
+		}
+
+		return await ObterDitadoComCategoriasAsync(ditado.Id);
 	}
 
 	public async Task<DitadoParaRealizarResponse?> ObterDitadoParaRealizarAsync(int id)
@@ -69,7 +84,7 @@ public class DitadoService
 		};
 	}
 
-	public async Task<ResultadoDitadoResponse?> SubmeterRespostaAsync(int ditadoId, SubmeterRespostaRequest request)
+	public async Task<ResultadoDitadoResponse?> SubmeterRespostaAsync(int ditadoId, SubmeterRespostaRequest request, int alunoId)
 	{
 		var ditado = await _context.Ditados
 			.Include(d => d.Segmentos)
@@ -81,6 +96,7 @@ public class DitadoService
 		var respostaDitado = new RespostaDitado
 		{
 			DitadoId = ditadoId,
+			AlunoId = alunoId,
 			DataRealizacao = DateTime.UtcNow
 		};
 
@@ -120,7 +136,7 @@ public class DitadoService
 			});
 		}
 
-		respostaDitado.Pontuacao = totalLacunas > 0 ? (decimal)acertos / totalLacunas * 100 : 0;
+		respostaDitado.Nota = totalLacunas > 0 ? (decimal)acertos / totalLacunas * 100 : 0;
 
 		_context.RespostaDitados.Add(respostaDitado);
 		await _context.SaveChangesAsync();
@@ -128,7 +144,7 @@ public class DitadoService
 		return new ResultadoDitadoResponse
 		{
 			RespostaDitadoId = respostaDitado.Id,
-			Pontuacao = respostaDitado.Pontuacao,
+			Nota = respostaDitado.Nota,
 			TotalLacunas = totalLacunas,
 			Acertos = acertos,
 			Erros = totalLacunas - acertos,
@@ -139,6 +155,9 @@ public class DitadoService
 	public async Task<List<DitadoResponse>> ListarDitadosAsync()
 	{
 		return await _context.Ditados
+			.Include(d => d.DitadoCategorias)
+			.ThenInclude(dc => dc.Categoria)
+			.Include(d => d.Autor)
 			.Where(d => d.Ativo)
 			.OrderByDescending(d => d.DataCriacao)
 			.Select(d => new DitadoResponse
@@ -146,9 +165,142 @@ public class DitadoService
 				Id = d.Id,
 				Titulo = d.Titulo,
 				Descricao = d.Descricao,
-				DataCriacao = d.DataCriacao
+				DataCriacao = d.DataCriacao,
+				AutorId = d.AutorId,
+				AutorNome = d.Autor != null ? d.Autor.Nome : null, 
+				Categorias = d.DitadoCategorias
+					.Select(dc => new CategoriaSimplificadaDto
+					{
+						Id = dc.Categoria.Id,
+						Nome = dc.Categoria.Nome
+					})
+					.ToList()
 			})
 			.ToListAsync();
+	}
+
+	private async Task<DitadoResponse> ObterDitadoComCategoriasAsync(int ditadoId)
+	{
+		var ditado = await _context.Ditados
+			.Include(d => d.DitadoCategorias)
+			.ThenInclude(dc => dc.Categoria)
+			.Include(d => d.Autor)
+			.FirstOrDefaultAsync(d => d.Id == ditadoId);
+
+		if (ditado == null)
+			throw new InvalidOperationException("Ditado não encontrado.");
+
+		return new DitadoResponse
+		{
+			Id = ditado.Id,
+			Titulo = ditado.Titulo,
+			Descricao = ditado.Descricao,
+			DataCriacao = ditado.DataCriacao,
+			AutorId = ditado.AutorId,
+			AutorNome = ditado.Autor?.Nome,
+			Categorias = ditado.DitadoCategorias
+				.Select(dc => new CategoriaSimplificadaDto
+				{
+					Id = dc.Categoria.Id,
+					Nome = dc.Categoria.Nome
+				})
+				.ToList()
+		};
+	}
+
+	public async Task<DitadoResponse?> AtualizarCategoriasAsync(int ditadoId, List<int> categoriaIds)
+	{
+		var ditado = await _context.Ditados
+			.Include(d => d.DitadoCategorias)
+			.FirstOrDefaultAsync(d => d.Id == ditadoId);
+
+		if (ditado == null)
+			return null;
+
+		// Validar categorias
+		await _categoriaService.ValidarCategoriasAsync(categoriaIds);
+
+		// Remover associações antigas
+		_context.DitadoCategorias.RemoveRange(ditado.DitadoCategorias);
+
+		// Adicionar novas associações
+		foreach (var categoriaId in categoriaIds.Distinct())
+		{
+			_context.DitadoCategorias.Add(new DitadoCategoria
+			{
+				DitadoId = ditado.Id,
+				CategoriaId = categoriaId,
+				DataAssociacao = DateTime.UtcNow
+			});
+		}
+
+		await _context.SaveChangesAsync();
+
+		return await ObterDitadoComCategoriasAsync(ditado.Id);
+	}
+
+	public async Task<DitadoResponse?> AtualizarDitadoAsync(int id, AtualizarDitadoRequest request)
+	{
+		var ditado = await _context.Ditados
+			.Include(d => d.DitadoCategorias)
+			.FirstOrDefaultAsync(d => d.Id == id);
+
+		if (ditado == null)
+			return null;
+
+		// Atualizar título se fornecido
+		if (!string.IsNullOrWhiteSpace(request.Titulo))
+			ditado.Titulo = request.Titulo;
+
+		// Atualizar descrição se fornecido (permite limpar)
+		if (request.Descricao != null)
+			ditado.Descricao = string.IsNullOrWhiteSpace(request.Descricao) ? null : request.Descricao;
+
+		// Atualizar status ativo se fornecido
+		if (request.Ativo.HasValue)
+			ditado.Ativo = request.Ativo.Value;
+
+		// Atualizar categorias se fornecido (permite 0 categorias)
+		if (request.CategoriaIds != null)
+		{
+			// Validar categorias se houver alguma
+			if (request.CategoriaIds.Any())
+				await _categoriaService.ValidarCategoriasAsync(request.CategoriaIds);
+
+			// Remover associações antigas
+			_context.DitadoCategorias.RemoveRange(ditado.DitadoCategorias);
+
+			// Adicionar novas associações (pode ser lista vazia)
+			foreach (var categoriaId in request.CategoriaIds.Distinct())
+			{
+				_context.DitadoCategorias.Add(new DitadoCategoria
+				{
+					DitadoId = ditado.Id,
+					CategoriaId = categoriaId,
+					DataAssociacao = DateTime.UtcNow
+				});
+			}
+		}
+
+		await _context.SaveChangesAsync();
+
+		return await ObterDitadoComCategoriasAsync(ditado.Id);
+	}
+
+	public async Task<bool> DeletarDitadoAsync(int ditadoId, int usuarioLogadoId, TipoUsuario tipoUsuarioLogado)
+	{
+		var ditado = await _context.Ditados.FindAsync(ditadoId);
+
+		if (ditado == null)
+			return false;
+
+		if (tipoUsuarioLogado != TipoUsuario.Administrador && ditado.AutorId != usuarioLogadoId)
+			throw new InvalidOperationException("Apenas o autor do ditado ou um administrador podem excluí-lo.");
+
+		_context.Ditados.Remove(ditado);
+		await _context.SaveChangesAsync();
+
+		return true;
 	}
 
 	private List<DitadoSegmento> ParsearTextoComLacunas(string texto)
