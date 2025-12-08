@@ -1,9 +1,10 @@
-using System.Text.RegularExpressions;
 using Ditado.Aplicacao.DTOs;
 using Ditado.Dominio.Entidades;
 using Ditado.Dominio.Enums;
+using Ditado.Dominio.Extensions;
 using Ditado.Infra.Data;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 
 namespace Ditado.Aplicacao.Services;
 
@@ -132,7 +133,7 @@ public class DitadoService
 				RespostaFornecida = resposta.Resposta,
 				RespostaEsperada = segmento.Conteudo,
 				Correto = correto,
-				TipoErro = correto ? null : tipoErro.ToString()
+				TipoErro = correto ? null : tipoErro.ObterDescricao()
 			});
 		}
 
@@ -449,7 +450,76 @@ public class DitadoService
 		if (RemoverAcentos(respostaNorm) == RemoverAcentos(esperadoNorm))
 			return TipoErro.Acentuacao;
 
-		// 3. Verifica se é erro ortográfico puro (mesmo comprimento, letras diferentes)
+		// === TESTES PARA ERROS NA PRIMEIRA LETRA ===
+
+		// 3. Omissão de "H" inicial
+		// Ex: "omem" em vez de "homem"
+		if (esperadoNorm.Length > 0 && esperadoNorm[0] == 'h' && 
+			respostaNorm.Length > 0 && respostaNorm[0] != 'h' &&
+			esperadoNorm.Substring(1) == respostaNorm)
+		{
+			return TipoErro.Irregularidade;
+		}
+
+		// 4. Acréscimo de "H" inicial
+		// Ex: "hontem" em vez de "ontem"
+		if (respostaNorm.Length > 0 && respostaNorm[0] == 'h' && 
+			esperadoNorm.Length > 0 && esperadoNorm[0] != 'h' &&
+			respostaNorm.Substring(1) == esperadoNorm)
+		{
+			return TipoErro.Irregularidade;
+		}
+
+		// 5. Troca S/C iniciais antes de E/I
+		// Ex: "cigno" em vez de "signo", "sigarro" em vez de "cigarro"
+		if (respostaNorm.Length > 1 && esperadoNorm.Length > 1)
+		{
+			var primeiraLetraResposta = respostaNorm[0];
+			var primeiraLetraEsperado = esperadoNorm[0];
+			var segundaLetraResposta = respostaNorm[1];
+			var segundaLetraEsperado = esperadoNorm[1];
+
+			// Se primeira letra é S ou C e segunda letra é E ou I
+			if ((primeiraLetraResposta == 's' || primeiraLetraResposta == 'c') &&
+				(primeiraLetraEsperado == 's' || primeiraLetraEsperado == 'c') &&
+				primeiraLetraResposta != primeiraLetraEsperado &&
+				(segundaLetraResposta == 'e' || segundaLetraResposta == 'i') &&
+				segundaLetraResposta == segundaLetraEsperado &&
+				respostaNorm.Substring(1) == esperadoNorm.Substring(1))
+			{
+				return TipoErro.Contextual;
+			}
+		}
+
+		// 6. Omitir a primeira letra (SUPRESSÃO)
+		// Ex: "este" em vez de "teste"
+		if (respostaNorm.Length == esperadoNorm.Length - 1 &&
+			esperadoNorm.Substring(1) == respostaNorm)
+		{
+			return TipoErro.Supressao;
+		}
+
+		// 7. Adicionar uma letra antes (ACRÉSCIMO)
+		// Ex: "oteste" em vez de "teste"
+		if (respostaNorm.Length == esperadoNorm.Length + 1 &&
+			respostaNorm.Substring(1) == esperadoNorm)
+		{
+			return TipoErro.Acrescimo;
+		}
+
+		// 8. Trocar a primeira letra (TROCA)
+		// Ex: "deste" em vez de "teste"
+		if (respostaNorm.Length == esperadoNorm.Length &&
+			respostaNorm.Length > 0 &&
+			respostaNorm[0] != esperadoNorm[0] &&
+			respostaNorm.Substring(1) == esperadoNorm.Substring(1))
+		{
+			return TipoErro.Troca;
+		}
+
+		// === FIM DOS TESTES DE PRIMEIRA LETRA ===
+
+		// 9. Verifica se é erro ortográfico puro (mesmo comprimento, letras diferentes)
 		if (respostaNorm.Length == esperadoNorm.Length)
 		{
 			// Conta quantos caracteres são diferentes
@@ -465,7 +535,7 @@ public class DitadoService
 				return TipoErro.Ortografico;
 		}
 
-		// 4. Diferença de comprimento pode ser omissão OU ortográfico
+		// 10. Diferença de comprimento pode ser omissão OU ortográfico
 		var diferencaComprimento = Math.Abs(respostaNorm.Length - esperadoNorm.Length);
 
 		if (diferencaComprimento <= 2)
@@ -479,7 +549,7 @@ public class DitadoService
 				return TipoErro.Ortografico;
 		}
 
-		// 5. Grande diferença de comprimento = omissão
+		// 11. Grande diferença de comprimento = omissão
 		return TipoErro.Omissao;
 	}
 
