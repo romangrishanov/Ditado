@@ -178,7 +178,7 @@ public class DitadosControllerTests : TesteIntegracaoBase
 		var erroOrtografico = response.Detalhes.First(d => !d.Correto);
 		erroOrtografico.RespostaFornecida.Should().Be("cachoro");
 		erroOrtografico.RespostaEsperada.Should().Be("cachorro");
-		erroOrtografico.TipoErro.Should().Be("Ortografico");
+		erroOrtografico.TipoErro.Should().Be("Erro ortográfico"); // ATUALIZADO para descrição completa
 	}
 
 	[Fact]
@@ -207,7 +207,7 @@ public class DitadosControllerTests : TesteIntegracaoBase
 		response.Should().NotBeNull();
 		var erro = response!.Detalhes.First();
 		erro.Correto.Should().BeFalse();
-		erro.TipoErro.Should().Be("Acentuacao");
+		erro.TipoErro.Should().Be("Erro de acentuação"); // ATUALIZADO para descrição completa
 		erro.RespostaEsperada.Should().Be("árvore");
 	}
 
@@ -236,7 +236,7 @@ public class DitadosControllerTests : TesteIntegracaoBase
 
 		// Assert
 		var omissao = response!.Detalhes.First(d => d.RespostaFornecida == "");
-		omissao.TipoErro.Should().Be("Omissao");
+		omissao.TipoErro.Should().Be("Omissão de letra(s)"); // ATUALIZADO para descrição completa
 	}
 
 	[Fact]

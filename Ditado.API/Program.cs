@@ -113,6 +113,7 @@ builder.Services.AddScoped<DitadoService>();
 builder.Services.AddScoped<TurmaService>();
 builder.Services.AddScoped<CategoriaService>();
 builder.Services.AddScoped<AlunoService>();
+builder.Services.AddScoped<ProfessorService>();
 builder.Services.AddScoped<PasswordHasher>();
 builder.Services.AddScoped<TokenService>();
 
