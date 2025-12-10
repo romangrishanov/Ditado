@@ -321,6 +321,140 @@ public class DitadosControllerTests : TesteIntegracaoBase
 		resultado!.Nota.Should().Be(100);
 	}
 
+	#region Testes para Novos Tipos de Erro
+
+	[Fact]
+	public async Task SubmeterResposta_ComSupressaoFim_DeveIdentificarCorretamente()
+	{
+		// Arrange
+		var token = await ObterTokenAdminAsync();
+		AdicionarTokenAutorizacao(token);
+
+		var ditadoId = await CriarDitadoComPalavra("gato");
+		var ditado = await GetAsync<DitadoParaRealizarResponse>($"/api/ditados/{ditadoId}/realizar");
+		var lacunas = ditado!.Segmentos.Where(s => s.Tipo == "Lacuna").ToList();
+
+		var request = new SubmeterRespostaRequest
+		{
+			Respostas = new List<RespostaSegmentoDto>
+			{
+				new() { SegmentoId = lacunas[0].SegmentoId!.Value, Resposta = "gat" } // Supressão do 'o'
+			}
+		};
+
+		// Act
+		var response = await PostAsync<ResultadoDitadoResponse>($"/api/ditados/{ditadoId}/submeter", request);
+
+		// Assert
+		response.Should().NotBeNull();
+		var erro = response!.Detalhes.First();
+		erro.Correto.Should().BeFalse();
+		erro.TipoErro.Should().Be("Supressão da ÚLTIMA letra");
+	}
+
+	[Fact]
+	public async Task SubmeterResposta_ComInversaoFim_DeveIdentificarCorretamente()
+	{
+		// Arrange
+		var token = await ObterTokenAdminAsync();
+		AdicionarTokenAutorizacao(token);
+
+		var ditadoId = await CriarDitadoComPalavra("bola");
+		var ditado = await GetAsync<DitadoParaRealizarResponse>($"/api/ditados/{ditadoId}/realizar");
+		var lacunas = ditado!.Segmentos.Where(s => s.Tipo == "Lacuna").ToList();
+
+		var request = new SubmeterRespostaRequest
+		{
+			Respostas = new List<RespostaSegmentoDto>
+			{
+				new() { SegmentoId = lacunas[0].SegmentoId!.Value, Resposta = "boal" } // Inversão 'la' >>> 'al'
+			}
+		};
+
+		// Act
+		var response = await PostAsync<ResultadoDitadoResponse>($"/api/ditados/{ditadoId}/submeter", request);
+
+		// Assert
+		response.Should().NotBeNull();
+		var erro = response!.Detalhes.First();
+		erro.Correto.Should().BeFalse();
+		erro.TipoErro.Should().Be("Inversão das duas ÚLTIMAS letras");
+	}
+
+	[Fact]
+	public async Task SubmeterResposta_ComConfusaoSZ_DeveIdentificarCorretamente()
+	{
+		// Arrange
+		var token = await ObterTokenAdminAsync();
+		AdicionarTokenAutorizacao(token);
+
+		var ditadoId = await CriarDitadoComPalavra("paz");
+		var ditado = await GetAsync<DitadoParaRealizarResponse>($"/api/ditados/{ditadoId}/realizar");
+		var lacunas = ditado!.Segmentos.Where(s => s.Tipo == "Lacuna").ToList();
+
+		var request = new SubmeterRespostaRequest
+		{
+			Respostas = new List<RespostaSegmentoDto>
+			{
+				new() { SegmentoId = lacunas[0].SegmentoId!.Value, Resposta = "pas" } // Confusão Z >>> S
+			}
+		};
+
+		// Act
+		var response = await PostAsync<ResultadoDitadoResponse>($"/api/ditados/{ditadoId}/submeter", request);
+
+		// Assert
+		response.Should().NotBeNull();
+		var erro = response!.Detalhes.First();
+		erro.Correto.Should().BeFalse();
+		erro.TipoErro.Should().Be("Confusão entre S e Z FINAL");
+	}
+
+	[Fact]
+	public async Task SubmeterResposta_ComTrocaInicio_DeveIdentificarCorretamente()
+	{
+		// Arrange
+		var token = await ObterTokenAdminAsync();
+		AdicionarTokenAutorizacao(token);
+
+		var ditadoId = await CriarDitadoComPalavra("teste");
+		var ditado = await GetAsync<DitadoParaRealizarResponse>($"/api/ditados/{ditadoId}/realizar");
+		var lacunas = ditado!.Segmentos.Where(s => s.Tipo == "Lacuna").ToList();
+
+		var request = new SubmeterRespostaRequest
+		{
+			Respostas = new List<RespostaSegmentoDto>
+			{
+				new() { SegmentoId = lacunas[0].SegmentoId!.Value, Resposta = "deste" } // Troca T >>> D
+			}
+		};
+
+		// Act
+		var response = await PostAsync<ResultadoDitadoResponse>($"/api/ditados/{ditadoId}/submeter", request);
+
+		// Assert
+		response.Should().NotBeNull();
+		var erro = response!.Detalhes.First();
+		erro.Correto.Should().BeFalse();
+		erro.TipoErro.Should().Be("Troca da PRIMEIRA letra");
+	}
+
+	// Método auxiliar adicional
+	private async Task<int> CriarDitadoComPalavra(string palavra)
+	{
+		var audioBase64 = "data:audio/mpeg;base64,SUQzAwAAAAAAJlRQRTEAAAAcAAAAU291bmRKYXk=";
+		var request = new CriarDitadoRequest
+		{
+			Titulo = $"Teste {palavra}",
+			Descricao = "Teste de tipo de erro",
+			TextoComMarcacoes = $"A palavra é [{palavra}].",
+			AudioBase64 = audioBase64
+		};
+
+		var response = await PostAsync<DitadoResponse>("/api/ditados", request);
+		return response!.Id;
+	}
+
 	// Métodos auxiliares privados
 	private async Task<int> CriarDitadoTeste()
 	{
@@ -351,4 +485,5 @@ public class DitadosControllerTests : TesteIntegracaoBase
 		var response = await PostAsync<DitadoResponse>("/api/ditados", request);
 		return response!.Id;
 	}
+	#endregion
 }

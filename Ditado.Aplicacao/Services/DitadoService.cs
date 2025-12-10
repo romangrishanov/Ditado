@@ -11,7 +11,7 @@ namespace Ditado.Aplicacao.Services;
 public class DitadoService
 {
 	private readonly DitadoDbContext _context;
-	private readonly CategoriaService _categoriaService; // Adicionado para gerenciar categorias
+	private readonly CategoriaService _categoriaService;
 
 	public DitadoService(DitadoDbContext context, CategoriaService categoriaService)
 	{
@@ -441,115 +441,202 @@ public class DitadoService
 	{
 		var respostaNorm = NormalizarTexto(resposta);
 		var esperadoNorm = NormalizarTexto(esperado);
-
-		// 1. Verifica omissão (resposta vazia ou muito curta)
+		
+		// 1. Verifica omissão completa (resposta vazia)
 		if (string.IsNullOrWhiteSpace(respostaNorm))
 			return TipoErro.Omissao;
 
-		// 2. Verifica erro de acentuação (se remover acentos ficam iguais)
-		if (RemoverAcentos(respostaNorm) == RemoverAcentos(esperadoNorm))
-			return TipoErro.Acentuacao;
+		// 2. Se são iguais (acerto perfeito)
+		if (respostaNorm == esperadoNorm)
+			return TipoErro.Nenhum;
 
-		// === TESTES PARA ERROS NA PRIMEIRA LETRA ===
+		// 3. Criar versões sem acentos para comparações de estrutura
+		var respostaSemAcento = RemoverAcentos(respostaNorm);
+		var esperadoSemAcento = RemoverAcentos(esperadoNorm);
 
-		// 3. Omissão de "H" inicial
-		// Ex: "omem" em vez de "homem"
-		if (esperadoNorm.Length > 0 && esperadoNorm[0] == 'h' && 
-			respostaNorm.Length > 0 && respostaNorm[0] != 'h' &&
-			esperadoNorm.Substring(1) == respostaNorm)
+		// === PRIORIDADE: ERROS DE ÚLTIMA LETRA ===
+		if (respostaSemAcento.Length >= 3 && esperadoSemAcento.Length >= 3)
 		{
-			return TipoErro.Irregularidade;
+			var ultimaLetraResposta = respostaSemAcento[^1];
+			var ultimaLetraEsperado = esperadoSemAcento[^1];
+			var penultimaLetraResposta = respostaSemAcento.Length >= 2 ? respostaSemAcento[^2] : '\0';
+			var penultimaLetraEsperado = esperadoSemAcento.Length >= 2 ? esperadoSemAcento[^2] : '\0';
+
+			// A. Inversão (bola > boal)
+			if (respostaSemAcento.Length == esperadoSemAcento.Length &&
+				respostaSemAcento.Length >= 3 &&
+				ultimaLetraResposta == penultimaLetraEsperado &&
+				penultimaLetraResposta == ultimaLetraEsperado &&
+				respostaSemAcento[..^2] == esperadoSemAcento[..^2])
+			{
+				return TipoErro.InversaoFim;
+			}
+
+			// B. Supressão (gato > gat)
+			if (respostaSemAcento.Length == esperadoSemAcento.Length - 1 &&
+				respostaSemAcento == esperadoSemAcento[..^1])
+			{
+				return TipoErro.SupressaoFim;
+			}
+
+			// C. Confusão S/SS (três > tress)
+			if (respostaSemAcento.Length == esperadoSemAcento.Length + 1 &&
+				ultimaLetraResposta == 's' &&
+				penultimaLetraResposta == 's' &&
+				ultimaLetraEsperado == 's' &&
+				respostaSemAcento[..^2] == esperadoSemAcento[..^1])
+			{
+				return TipoErro.ConfusaoSSS;
+			}
+			if (respostaSemAcento.Length == esperadoSemAcento.Length - 1 &&
+				ultimaLetraResposta == 's' &&
+				ultimaLetraEsperado == 's' &&
+				penultimaLetraEsperado == 's' &&
+				respostaSemAcento[..^1] == esperadoSemAcento[..^2])
+			{
+				return TipoErro.ConfusaoSSS;
+			}
+
+			// D. H Final Indevido (alô > aloh)
+			// ANTES de Acréscimo genérico
+			if (respostaSemAcento.Length == esperadoSemAcento.Length + 1 &&
+				ultimaLetraResposta == 'h' &&
+				respostaSemAcento[..^1] == esperadoSemAcento)
+			{
+				return TipoErro.HFinalIndevido;
+			}
+
+			// E. Acréscimo (casa > casaa)
+			if (respostaSemAcento.Length == esperadoSemAcento.Length + 1 &&
+				esperadoSemAcento == respostaSemAcento[..^1])
+			{
+				return TipoErro.AcrescimoFim;
+			}
+
+			// F. Troca da última letra (bom > bon)
+			if (respostaSemAcento.Length == esperadoSemAcento.Length &&
+				ultimaLetraResposta != ultimaLetraEsperado &&
+				respostaSemAcento[..^1] == esperadoSemAcento[..^1])
+			{
+				// F.1. Confusão S/Z
+				if ((ultimaLetraResposta == 's' && ultimaLetraEsperado == 'z') ||
+					(ultimaLetraResposta == 'z' && ultimaLetraEsperado == 's'))
+				{
+					return TipoErro.ConfusaoSZ;
+				}
+
+				// F.2. Confusão S/X
+				if ((ultimaLetraResposta == 's' && ultimaLetraEsperado == 'x') ||
+					(ultimaLetraResposta == 'x' && ultimaLetraEsperado == 's'))
+				{
+					return TipoErro.ConfusaoSX;
+				}
+
+				// F.3. Confusão S/Ç
+				if ((ultimaLetraResposta == 's' && ultimaLetraEsperado == 'ç') ||
+					(ultimaLetraResposta == 'ç' && ultimaLetraEsperado == 's'))
+				{
+					return TipoErro.ConfusaoSC;
+				}
+
+				return TipoErro.TrocaFim;
+			}
 		}
 
-		// 4. Acréscimo de "H" inicial
-		// Ex: "hontem" em vez de "ontem"
-		if (respostaNorm.Length > 0 && respostaNorm[0] == 'h' && 
-			esperadoNorm.Length > 0 && esperadoNorm[0] != 'h' &&
-			respostaNorm.Substring(1) == esperadoNorm)
+		// === ERROS DE PRIMEIRA LETRA (USAR VERSÕES SEM ACENTO) ===
+
+		// 3. Omissão de "H" inicial (ex: homem > omem)
+		if (esperadoSemAcento.Length > 0 && esperadoSemAcento[0] == 'h' &&
+			respostaSemAcento.Length > 0 && respostaSemAcento[0] != 'h' &&
+			esperadoSemAcento.Substring(1) == respostaSemAcento)
 		{
-			return TipoErro.Irregularidade;
+			return TipoErro.IrregularidadeHInicio;
+		}
+
+		// 4. Acréscimo de "H" inicial (ex: ontem > hontem)
+		if (respostaSemAcento.Length > 0 && respostaSemAcento[0] == 'h' &&
+			esperadoSemAcento.Length > 0 && esperadoSemAcento[0] != 'h' &&
+			respostaSemAcento.Substring(1) == esperadoSemAcento)
+		{
+			return TipoErro.IrregularidadeHInicio;
 		}
 
 		// 5. Troca S/C iniciais antes de E/I
-		// Ex: "cigno" em vez de "signo", "sigarro" em vez de "cigarro"
-		if (respostaNorm.Length > 1 && esperadoNorm.Length > 1)
+		if (respostaSemAcento.Length > 1 && esperadoSemAcento.Length > 1)
 		{
-			var primeiraLetraResposta = respostaNorm[0];
-			var primeiraLetraEsperado = esperadoNorm[0];
-			var segundaLetraResposta = respostaNorm[1];
-			var segundaLetraEsperado = esperadoNorm[1];
+			var primeiraLetraResposta = respostaSemAcento[0];
+			var primeiraLetraEsperado = esperadoSemAcento[0];
+			var segundaLetraResposta = respostaSemAcento[1];
+			var segundaLetraEsperado = esperadoSemAcento[1];
 
-			// Se primeira letra é S ou C e segunda letra é E ou I
 			if ((primeiraLetraResposta == 's' || primeiraLetraResposta == 'c') &&
 				(primeiraLetraEsperado == 's' || primeiraLetraEsperado == 'c') &&
 				primeiraLetraResposta != primeiraLetraEsperado &&
 				(segundaLetraResposta == 'e' || segundaLetraResposta == 'i') &&
 				segundaLetraResposta == segundaLetraEsperado &&
-				respostaNorm.Substring(1) == esperadoNorm.Substring(1))
+				respostaSemAcento.Substring(1) == esperadoSemAcento.Substring(1))
 			{
-				return TipoErro.Contextual;
+				return TipoErro.ContextualSCInicio;
 			}
 		}
 
-		// 6. Omitir a primeira letra (SUPRESSÃO)
-		// Ex: "este" em vez de "teste"
-		if (respostaNorm.Length == esperadoNorm.Length - 1 &&
-			esperadoNorm.Substring(1) == respostaNorm)
+		// 6. Supressão da primeira letra (ex: teste > este)
+		if (respostaSemAcento.Length == esperadoSemAcento.Length - 1 &&
+			esperadoSemAcento.Substring(1) == respostaSemAcento)
 		{
-			return TipoErro.Supressao;
+			return TipoErro.SupressaoInicio;
 		}
 
-		// 7. Adicionar uma letra antes (ACRÉSCIMO)
-		// Ex: "oteste" em vez de "teste"
-		if (respostaNorm.Length == esperadoNorm.Length + 1 &&
-			respostaNorm.Substring(1) == esperadoNorm)
+		// 7. Acréscimo de letra inicial (ex: teste > oteste)
+		if (respostaSemAcento.Length == esperadoSemAcento.Length + 1 &&
+			respostaSemAcento.Substring(1) == esperadoSemAcento)
 		{
-			return TipoErro.Acrescimo;
+			return TipoErro.AcrescimoInicio;
 		}
 
-		// 8. Trocar a primeira letra (TROCA)
-		// Ex: "deste" em vez de "teste"
-		if (respostaNorm.Length == esperadoNorm.Length &&
-			respostaNorm.Length > 0 &&
-			respostaNorm[0] != esperadoNorm[0] &&
-			respostaNorm.Substring(1) == esperadoNorm.Substring(1))
+		// 8. Troca da primeira letra (ex: teste > deste)
+		if (respostaSemAcento.Length == esperadoSemAcento.Length &&
+			respostaSemAcento.Length > 0 &&
+			respostaSemAcento[0] != esperadoSemAcento[0] &&
+			respostaSemAcento.Substring(1) == esperadoSemAcento.Substring(1))
 		{
-			return TipoErro.Troca;
+			return TipoErro.TrocaInicio;
 		}
 
-		// === FIM DOS TESTES DE PRIMEIRA LETRA ===
+		// === VERIFICAÇÃO DE ACENTUAÇÃO (DEPOIS dos erros específicos!) ===
+		// Se sem acentos ficam iguais, o único erro é acentuação
+		if (respostaSemAcento == esperadoSemAcento)
+			return TipoErro.Acentuacao;
 
-		// 9. Verifica se é erro ortográfico puro (mesmo comprimento, letras diferentes)
-		if (respostaNorm.Length == esperadoNorm.Length)
+		// === ERROS ORTOGRÁFICOS GENÉRICOS ===
+
+		// 9. Erro ortográfico puro (mesmo comprimento, letras diferentes)
+		if (respostaSemAcento.Length == esperadoSemAcento.Length)
 		{
-			// Conta quantos caracteres são diferentes
 			int diferencas = 0;
-			for (int i = 0; i < respostaNorm.Length; i++)
+			for (int i = 0; i < respostaSemAcento.Length; i++)
 			{
-				if (respostaNorm[i] != esperadoNorm[i])
+				if (respostaSemAcento[i] != esperadoSemAcento[i])
 					diferencas++;
 			}
 
-			// Se tem diferenças mas mesmo tamanho, é ortográfico (troca de letras)
 			if (diferencas > 0)
 				return TipoErro.Ortografico;
 		}
 
-		// 10. Diferença de comprimento pode ser omissão OU ortográfico
-		var diferencaComprimento = Math.Abs(respostaNorm.Length - esperadoNorm.Length);
+		// 10. Diferença de comprimento
+		var diferencaComprimento = Math.Abs(respostaSemAcento.Length - esperadoSemAcento.Length);
 
 		if (diferencaComprimento <= 2)
 		{
-			// Verifica similaridade: quantos caracteres em comum?
-			var caracteresComuns = respostaNorm.Intersect(esperadoNorm).Count();
-			var tamanhoMenor = Math.Min(respostaNorm.Length, esperadoNorm.Length);
+			var caracteresComuns = respostaSemAcento.Intersect(esperadoSemAcento).Count();
+			var tamanhoMenor = Math.Min(respostaSemAcento.Length, esperadoSemAcento.Length);
 
-			// Se mais de 70% dos caracteres são comuns, é ortográfico
 			if (tamanhoMenor > 0 && (double)caracteresComuns / tamanhoMenor >= 0.7)
 				return TipoErro.Ortografico;
 		}
 
-		// 11. Grande diferença de comprimento = omissão
+		// 11. Grande diferença = omissão genérica
 		return TipoErro.Omissao;
 	}
 
