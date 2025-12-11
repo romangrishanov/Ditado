@@ -151,6 +151,8 @@ if (app.Environment.IsDevelopment())
 app.UseSwagger();
 app.UseSwaggerUI();
 
+app.UseStaticFiles();
+
 // USAR CORS - DEVE VIR ANTES DE UseAuthentication/UseAuthorization
 app.UseCors("AllowAll");
 
