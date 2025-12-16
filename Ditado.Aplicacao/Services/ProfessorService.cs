@@ -1,4 +1,5 @@
 using Ditado.Aplicacao.DTOs.Professores;
+using Ditado.Aplicacao.DTOs;
 using Ditado.Dominio.Enums;
 using Ditado.Dominio.Extensions;
 using Ditado.Infra.Data;
@@ -235,6 +236,71 @@ public class ProfessorService
             Alunos = alunosResultado.OrderBy(a => a.Nome).ToList(),
             ErrosPorTipo = todosErros,
             ErrosPorPalavra = errosPorPalavra
+        };
+    }
+
+    /// <summary>
+    /// Obtém o resultado detalhado de um aluno específico em um ditado (1ª tentativa)
+    /// </summary>
+    public async Task<ResultadoAlunoDetalheDto?> ObterResultadoAlunoAsync(int turmaId, int alunoId, int ditadoId, int professorId)
+    {
+        // Verificar se a turma pertence ao professor
+        var turma = await _context.Turmas
+            .FirstOrDefaultAsync(t => t.Id == turmaId && t.ProfessorResponsavelId == professorId);
+
+        if (turma == null)
+            return null;
+
+        // Verificar se o aluno está na turma
+        var alunoNaTurma = await _context.Usuarios
+            .AnyAsync(u => u.Id == alunoId && u.TurmasComoAluno.Any(t => t.Id == turmaId));
+
+        if (!alunoNaTurma)
+            return null;
+
+        // Buscar a PRIMEIRA tentativa do aluno neste ditado
+        var primeiraTentativa = await _context.RespostaDitados
+            .Where(r => r.DitadoId == ditadoId && r.AlunoId == alunoId)
+            .Include(r => r.RespostasSegmentos)
+            .ThenInclude(rs => rs.Segmento)
+            .Include(r => r.Aluno)
+            .Include(r => r.Ditado)
+            .OrderBy(r => r.DataRealizacao)
+            .FirstOrDefaultAsync();
+
+        if (primeiraTentativa == null)
+            return null;
+
+        // Montar lista de detalhes (igual ao que aluno viu)
+        var detalhes = primeiraTentativa.RespostasSegmentos
+            .OrderBy(rs => rs.Segmento.Ordem)
+            .Select(rs => new DetalheRespostaDto
+            {
+                SegmentoId = rs.SegmentoId,
+                RespostaFornecida = rs.RespostaFornecida,
+                RespostaEsperada = rs.Segmento.Conteudo,
+                Correto = rs.Correto,
+                TipoErro = rs.TipoErro.HasValue ? rs.TipoErro.Value.ObterDescricao() : null
+            })
+            .ToList();
+
+        var totalLacunas = primeiraTentativa.RespostasSegmentos.Count;
+        var acertos = primeiraTentativa.RespostasSegmentos.Count(rs => rs.Correto);
+
+        return new ResultadoAlunoDetalheDto
+        {
+            AlunoId = primeiraTentativa.AlunoId,
+            NomeAluno = primeiraTentativa.Aluno.Nome,
+            Matricula = primeiraTentativa.Aluno.Matricula,
+            DataRealizacao = primeiraTentativa.DataRealizacao,
+            DitadoId = primeiraTentativa.DitadoId,
+            DitadoTitulo = primeiraTentativa.Ditado.Titulo,
+            DitadoDescricao = primeiraTentativa.Ditado.Descricao,
+            Nota = Math.Round(primeiraTentativa.Nota, 2),
+            TotalLacunas = totalLacunas,
+            Acertos = acertos,
+            Erros = totalLacunas - acertos,
+            Detalhes = detalhes
         };
     }
 }

@@ -176,4 +176,91 @@ public class ProfessoresController : ControllerBase
 
         return Ok(resultado);
     }
+
+    /// <summary>
+    /// Obtém o resultado detalhado de um aluno específico em um ditado
+    /// </summary>
+    /// <remarks>
+    /// Retorna exatamente o que o aluno viu ao submeter o ditado (1ª tentativa):
+    /// - Lista completa de respostas (palavra esperada vs palavra fornecida)
+    /// - Tipo de erro em cada palavra
+    /// - Estatísticas (nota, acertos, erros)
+    /// 
+    /// **Critério:** Sempre considera apenas a **primeira tentativa** do aluno
+    /// 
+    /// **Acesso:**
+    /// - Apenas o professor responsável pela turma pode visualizar
+    /// 
+    /// **Exemplo de resposta:**
+    /// 
+    ///     {
+    ///       "alunoId": 100,
+    ///       "nomeAluno": "João Silva",
+    ///       "matricula": "2024001",
+    ///       "dataRealizacao": "2024-12-08T14:30:00Z",
+    ///       "ditadoId": 10,
+    ///       "ditadoTitulo": "Ortografia Básica",
+    ///       "ditadoDescricao": "Ditado sobre uso de SS, S, Z",
+    ///       "nota": 75.0,
+    ///       "totalLacunas": 4,
+    ///       "acertos": 3,
+    ///       "erros": 1,
+    ///       "detalhes": [
+    ///         {
+    ///           "segmentoId": 45,
+    ///           "respostaFornecida": "cachorro",
+    ///           "respostaEsperada": "cachorro",
+    ///           "correto": true,
+    ///           "tipoErro": null
+    ///         },
+    ///         {
+    ///           "segmentoId": 46,
+    ///           "respostaFornecida": "arvore",
+    ///           "respostaEsperada": "árvore",
+    ///           "correto": false,
+    ///           "tipoErro": "Erro de acentuação"
+    ///         },
+    ///         {
+    ///           "segmentoId": 47,
+    ///           "respostaFornecida": "tres",
+    ///           "respostaEsperada": "três",
+    ///           "correto": false,
+    ///           "tipoErro": "Erro de acentuação"
+    ///         },
+    ///         {
+    ///           "segmentoId": 48,
+    ///           "respostaFornecida": "gato",
+    ///           "respostaEsperada": "gato",
+    ///           "correto": true,
+    ///           "tipoErro": null
+    ///         }
+    ///       ]
+    ///     }
+    /// </remarks>
+    /// <param name="turmaId">ID da turma</param>
+    /// <param name="alunoId">ID do aluno</param>
+    /// <param name="ditadoId">ID do ditado</param>
+    /// <returns>Resultado detalhado do aluno (1ª tentativa)</returns>
+    /// <response code="200">Resultado retornado com sucesso</response>
+    /// <response code="401">Não autenticado</response>
+    /// <response code="403">Sem permissão (turma não pertence ao professor)</response>
+    /// <response code="404">Aluno não encontrado na turma ou não fez o ditado</response>
+    [HttpGet("turmas/{turmaId}/alunos/{alunoId}/ditados/{ditadoId}/resultado")]
+    [ProducesResponseType(typeof(ResultadoAlunoDetalheDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ResultadoAlunoDetalheDto>> ObterResultadoAluno(int turmaId, int alunoId, int ditadoId)
+    {
+        var professorId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var resultado = await _professorService.ObterResultadoAlunoAsync(turmaId, alunoId, ditadoId, professorId);
+
+        if (resultado == null)
+            return NotFound(new 
+            { 
+                mensagem = "Resultado não encontrado. Verifique se a turma pertence a você, se o aluno está na turma e se ele realizou o ditado." 
+            });
+
+        return Ok(resultado);
+    }
 }

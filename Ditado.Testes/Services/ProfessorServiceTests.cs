@@ -663,22 +663,217 @@ public class ProfessorServiceTests : IDisposable
         await _context.SaveChangesAsync();
 
         await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
-    
-        await CriarRespostaDitadoAsync(ditado.Id, aluno.Id, 0m, 
+        
+        await CriarRespostaDitadoAsync(ditado.Id, aluno.Id, 100m, 
             TipoErro.Nenhum, 
             TipoErro.Nenhum, 
             TipoErro.Nenhum);
 
-        // Act
+        // Act - CORRIGIDO: usar ObterDetalhesAtribuicaoAsync ao invés de ObterResultadoAlunoAsync
         var resultado = await _professorService.ObterDetalhesAtribuicaoAsync(turma.Id, ditado.Id, professor.Id);
 
         // Assert
         Assert.NotNull(resultado);
-        Assert.Equal(3, resultado.ErrosPorPalavra.Count);
+        Assert.Equal(3, resultado.ErrosPorPalavra.Count); // 3 lacunas
         
-        // Verificar ordem
+        // Verificar ordem das palavras no gráfico (baseada na ordem dos segmentos)
         Assert.Equal("gato", resultado.ErrosPorPalavra[0].Palavra); // Ordem 2
         Assert.Equal("cachorro", resultado.ErrosPorPalavra[1].Palavra); // Ordem 4
         Assert.Equal("árvore", resultado.ErrosPorPalavra[2].Palavra); // Ordem 6
+    }
+
+    [Fact]
+    public async Task ObterResultadoAluno_ComDadosValidos_DeveRetornarDetalhes()
+    {
+        // Arrange
+        var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var turma = await CriarTurmaAsync(professor.Id);
+        var aluno = await CriarUsuarioAsync(TipoUsuario.Aluno, "João Silva");
+        aluno.Matricula = "2024001";
+        await AdicionarAlunoNaTurmaAsync(aluno.Id, turma.Id);
+
+        var ditado = await CriarDitadoAsync(professor.Id, "Ortografia Básica");
+        ditado.Descricao = "Teste de ortografia";
+        
+        // Adicionar mais lacunas
+        ditado.Segmentos.Add(new DitadoSegmento 
+        { 
+            DitadoId = ditado.Id, 
+            Ordem = 3, 
+            Tipo = TipoSegmento.Lacuna, 
+            Conteudo = "árvore" 
+        });
+        await _context.SaveChangesAsync();
+
+        await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
+
+        // Aluno faz o ditado: acerta "gato", erra "árvore"
+        await CriarRespostaDitadoAsync(ditado.Id, aluno.Id, 50m, 
+            TipoErro.Nenhum,      // "gato" correto
+            TipoErro.Acentuacao); // "árvore" erro de acentuação
+
+        // Act
+        var resultado = await _professorService.ObterResultadoAlunoAsync(turma.Id, aluno.Id, ditado.Id, professor.Id);
+
+        // Assert
+        Assert.NotNull(resultado);
+        Assert.Equal(aluno.Id, resultado.AlunoId);
+        Assert.Equal("João Silva", resultado.NomeAluno);
+        Assert.Equal("2024001", resultado.Matricula);
+        Assert.Equal(ditado.Id, resultado.DitadoId);
+        Assert.Equal("Ortografia Básica", resultado.DitadoTitulo);
+        Assert.Equal("Teste de ortografia", resultado.DitadoDescricao);
+        Assert.Equal(50.0m, resultado.Nota);
+        Assert.Equal(2, resultado.TotalLacunas);
+        Assert.Equal(1, resultado.Acertos);
+        Assert.Equal(1, resultado.Erros);
+        Assert.Equal(2, resultado.Detalhes.Count);
+
+        // Verificar detalhes
+        var primeiraResposta = resultado.Detalhes[0];
+        Assert.True(primeiraResposta.Correto);
+        Assert.Null(primeiraResposta.TipoErro);
+
+        var segundaResposta = resultado.Detalhes[1];
+        Assert.False(segundaResposta.Correto);
+        Assert.Equal("Erro de acentuação", segundaResposta.TipoErro);
+    }
+
+    [Fact]
+    public async Task ObterResultadoAluno_TurmaNaoPertenceAoProfessor_DeveRetornarNull()
+    {
+        // Arrange
+        var professor1 = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var professor2 = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var turma = await CriarTurmaAsync(professor2.Id);
+        var aluno = await CriarUsuarioAsync(TipoUsuario.Aluno);
+        await AdicionarAlunoNaTurmaAsync(aluno.Id, turma.Id);
+
+        var ditado = await CriarDitadoAsync(professor2.Id);
+        await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
+        await CriarRespostaDitadoAsync(ditado.Id, aluno.Id, 100m);
+
+        // Act (professor1 tenta acessar resultado da turma do professor2)
+        var resultado = await _professorService.ObterResultadoAlunoAsync(turma.Id, aluno.Id, ditado.Id, professor1.Id);
+
+        // Assert
+        Assert.Null(resultado);
+    }
+
+    [Fact]
+    public async Task ObterResultadoAluno_AlunoNaoEstaNaTurma_DeveRetornarNull()
+    {
+        // Arrange
+        var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var turma = await CriarTurmaAsync(professor.Id);
+        var alunoNaTurma = await CriarUsuarioAsync(TipoUsuario.Aluno, "Aluno 1");
+        var alunoForaDaTurma = await CriarUsuarioAsync(TipoUsuario.Aluno, "Aluno 2");
+        await AdicionarAlunoNaTurmaAsync(alunoNaTurma.Id, turma.Id);
+
+        var ditado = await CriarDitadoAsync(professor.Id);
+        await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
+        await CriarRespostaDitadoAsync(ditado.Id, alunoForaDaTurma.Id, 100m);
+
+        // Act (tentar acessar resultado de aluno que não está na turma)
+        var resultado = await _professorService.ObterResultadoAlunoAsync(turma.Id, alunoForaDaTurma.Id, ditado.Id, professor.Id);
+
+        // Assert
+        Assert.Null(resultado);
+    }
+
+    [Fact]
+    public async Task ObterResultadoAluno_AlunoNaoFezDitado_DeveRetornarNull()
+    {
+        // Arrange
+        var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var turma = await CriarTurmaAsync(professor.Id);
+        var aluno = await CriarUsuarioAsync(TipoUsuario.Aluno);
+        await AdicionarAlunoNaTurmaAsync(aluno.Id, turma.Id);
+
+        var ditado = await CriarDitadoAsync(professor.Id);
+        await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
+
+        // Act (aluno não fez o ditado)
+        var resultado = await _professorService.ObterResultadoAlunoAsync(turma.Id, aluno.Id, ditado.Id, professor.Id);
+
+        // Assert
+        Assert.Null(resultado);
+    }
+
+    [Fact]
+    public async Task ObterResultadoAluno_ApenasConsideraPrimeiraTentativa()
+    {
+        // Arrange
+        var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var turma = await CriarTurmaAsync(professor.Id);
+        var aluno = await CriarUsuarioAsync(TipoUsuario.Aluno, "Maria Santos");
+        await AdicionarAlunoNaTurmaAsync(aluno.Id, turma.Id);
+
+        var ditado = await CriarDitadoAsync(professor.Id);
+        await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
+
+        // Primeira tentativa: nota 60
+        await CriarRespostaDitadoAsync(ditado.Id, aluno.Id, 60m, TipoErro.Ortografico);
+        await Task.Delay(100);
+
+        // Segunda tentativa: nota 100 (NÃO deve ser considerada)
+        await CriarRespostaDitadoAsync(ditado.Id, aluno.Id, 100m, TipoErro.Nenhum);
+
+        // Act
+        var resultado = await _professorService.ObterResultadoAlunoAsync(turma.Id, aluno.Id, ditado.Id, professor.Id);
+
+        // Assert
+        Assert.NotNull(resultado);
+        Assert.Equal(60.0m, resultado.Nota); // Apenas primeira tentativa
+        Assert.Single(resultado.Detalhes);
+        Assert.False(resultado.Detalhes[0].Correto); // Primeira tentativa teve erro
+    }
+
+    [Fact]
+    public async Task ObterResultadoAluno_DetalhesOrdenadosPorOrdemDoSegmento()
+    {
+        // Arrange
+        var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var turma = await CriarTurmaAsync(professor.Id);
+        var aluno = await CriarUsuarioAsync(TipoUsuario.Aluno);
+        await AdicionarAlunoNaTurmaAsync(aluno.Id, turma.Id);
+
+        var ditado = await CriarDitadoAsync(professor.Id);
+        
+        // Adicionar mais lacunas com ordens específicas
+        ditado.Segmentos.Add(new DitadoSegmento 
+        { 
+            DitadoId = ditado.Id, 
+            Ordem = 3, 
+            Tipo = TipoSegmento.Lacuna, 
+            Conteudo = "casa" 
+        });
+        ditado.Segmentos.Add(new DitadoSegmento 
+        { 
+            DitadoId = ditado.Id, 
+            Ordem = 5, 
+            Tipo = TipoSegmento.Lacuna, 
+            Conteudo = "sol" 
+        });
+        await _context.SaveChangesAsync();
+
+        await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
+    
+        await CriarRespostaDitadoAsync(ditado.Id, aluno.Id, 100m, 
+        TipoErro.Nenhum, 
+        TipoErro.Nenhum, 
+        TipoErro.Nenhum);
+
+        // Act
+        var resultado = await _professorService.ObterResultadoAlunoAsync(turma.Id, aluno.Id, ditado.Id, professor.Id);
+
+        // Assert
+        Assert.NotNull(resultado);
+        Assert.Equal(3, resultado.Detalhes.Count);
+        
+        // Verificar ordem (baseada na ordem dos segmentos)
+        Assert.Equal("gato", resultado.Detalhes[0].RespostaEsperada); // Ordem 2
+        Assert.Equal("casa", resultado.Detalhes[1].RespostaEsperada); // Ordem 3
+        Assert.Equal("sol", resultado.Detalhes[2].RespostaEsperada);  // Ordem 5
     }
 }
