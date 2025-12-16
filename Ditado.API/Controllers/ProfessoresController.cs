@@ -89,6 +89,13 @@ public class ProfessoresController : ControllerBase
     /// - Considera apenas 1ª tentativa de cada aluno
     /// - Formato: `[{ tipoErroId, descricao, descricaoCurta, quantidade }]`
     /// 
+    /// **3. Gráfico de Erros por Palavra:**
+    /// - Lista de palavras (lacunas) do ditado
+    /// - Quantidade de alunos que erraram cada palavra
+    /// - Percentual de erro em relação aos alunos que fizeram
+    /// - Considera apenas 1ª tentativa de cada aluno
+    /// - Ordenado pela ordem das palavras no ditado
+    /// 
     /// **Critério:** Sempre considera apenas a **primeira tentativa** de cada aluno
     /// 
     /// **Exemplo de resposta:**
@@ -126,6 +133,23 @@ public class ProfessoresController : ControllerBase
     ///           "descricao": "Erro ortográfico",
     ///           "descricaoCurta": "Ortografia",
     ///           "quantidade": 8
+    ///         }
+    ///       ],
+    ///       "errosPorPalavra": [
+    ///         {
+    ///           "palavra": "cachorro",
+    ///           "quantidadeErros": 12,
+    ///           "percentualErro": 66.67
+    ///         },
+    ///         {
+    ///           "palavra": "árvore",
+    ///           "quantidadeErros": 15,
+    ///           "percentualErro": 83.33
+    ///         },
+    ///         {
+    ///           "palavra": "três",
+    ///           "quantidadeErros": 8,
+    ///           "percentualErro": 44.44
     ///         }
     ///       ]
     ///     }

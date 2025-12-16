@@ -474,4 +474,211 @@ public class ProfessorServiceTests : IDisposable
         Assert.Equal((int)TipoErro.Ortografico, resultado.ErrosPorTipo[1].TipoErroId);
         Assert.Equal(1, resultado.ErrosPorTipo[1].Quantidade);
     }
+
+    [Fact]
+    public async Task ObterDetalhesAtribuicao_DeveCalcularErrosPorPalavra()
+    {
+        // Arrange
+        var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var turma = await CriarTurmaAsync(professor.Id);
+        var aluno1 = await CriarUsuarioAsync(TipoUsuario.Aluno, "Aluno 1");
+        var aluno2 = await CriarUsuarioAsync(TipoUsuario.Aluno, "Aluno 2");
+        var aluno3 = await CriarUsuarioAsync(TipoUsuario.Aluno, "Aluno 3");
+        
+        await AdicionarAlunoNaTurmaAsync(aluno1.Id, turma.Id);
+        await AdicionarAlunoNaTurmaAsync(aluno2.Id, turma.Id);
+        await AdicionarAlunoNaTurmaAsync(aluno3.Id, turma.Id);
+
+        var ditado = await CriarDitadoAsync(professor.Id);
+        
+        // Adicionar mais lacunas
+        ditado.Segmentos.Add(new DitadoSegmento 
+        { 
+            DitadoId = ditado.Id, 
+            Ordem = 3, 
+            Tipo = TipoSegmento.Lacuna, 
+            Conteudo = "cachorro" 
+        });
+        ditado.Segmentos.Add(new DitadoSegmento 
+        { 
+            DitadoId = ditado.Id, 
+            Ordem = 4, 
+            Tipo = TipoSegmento.Lacuna, 
+            Conteudo = "árvore" 
+        });
+        await _context.SaveChangesAsync();
+
+        await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
+
+        // Aluno 1: erra "gato" e "árvore"
+        await CriarRespostaDitadoAsync(ditado.Id, aluno1.Id, 33.33m, 
+            TipoErro.Ortografico,  // "gato"
+            TipoErro.Nenhum,       // "cachorro" (acerto)
+            TipoErro.Acentuacao);  // "árvore"
+
+        // Aluno 2: erra "gato" e "cachorro"
+        await CriarRespostaDitadoAsync(ditado.Id, aluno2.Id, 33.33m, 
+            TipoErro.Ortografico,  // "gato"
+            TipoErro.Ortografico,  // "cachorro"
+            TipoErro.Nenhum);      // "árvore" (acerto)
+
+        // Aluno 3: acerta tudo
+        await CriarRespostaDitadoAsync(ditado.Id, aluno3.Id, 100m, 
+            TipoErro.Nenhum,       // "gato"
+            TipoErro.Nenhum,       // "cachorro"
+            TipoErro.Nenhum);      // "árvore"
+
+        // Act
+        var resultado = await _professorService.ObterDetalhesAtribuicaoAsync(turma.Id, ditado.Id, professor.Id);
+
+        // Assert
+        Assert.NotNull(resultado);
+        Assert.Equal(3, resultado.ErrosPorPalavra.Count); // 3 lacunas
+
+        // Primeira palavra: "gato" - 2 alunos erraram de 3 = 66.67%
+        var palavraGato = resultado.ErrosPorPalavra[0];
+        Assert.Equal("gato", palavraGato.Palavra);
+        Assert.Equal(2, palavraGato.QuantidadeErros);
+        Assert.Equal(66.67m, palavraGato.PercentualErro);
+
+        // Segunda palavra: "cachorro" - 1 aluno errou de 3 = 33.33%
+        var palavraCachorro = resultado.ErrosPorPalavra[1];
+        Assert.Equal("cachorro", palavraCachorro.Palavra);
+        Assert.Equal(1, palavraCachorro.QuantidadeErros);
+        Assert.Equal(33.33m, palavraCachorro.PercentualErro);
+
+        // Terceira palavra: "árvore" - 1 aluno errou de 3 = 33.33%
+        var palavraArvore = resultado.ErrosPorPalavra[2];
+        Assert.Equal("árvore", palavraArvore.Palavra);
+        Assert.Equal(1, palavraArvore.QuantidadeErros);
+        Assert.Equal(33.33m, palavraArvore.PercentualErro);
+    }
+
+    [Fact]
+    public async Task ObterDetalhesAtribuicao_ErrosPorPalavra_ApenasConsideraPrimeiraTentativa()
+    {
+        // Arrange
+        var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var turma = await CriarTurmaAsync(professor.Id);
+        var aluno = await CriarUsuarioAsync(TipoUsuario.Aluno);
+        await AdicionarAlunoNaTurmaAsync(aluno.Id, turma.Id);
+
+        var ditado = await CriarDitadoAsync(professor.Id);
+        await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
+
+        // Primeira tentativa: erro na palavra "gato"
+        await CriarRespostaDitadoAsync(ditado.Id, aluno.Id, 0m, TipoErro.Ortografico);
+        await Task.Delay(100);
+
+        // Segunda tentativa: acertou "gato" (NÃO deve ser considerada)
+        await CriarRespostaDitadoAsync(ditado.Id, aluno.Id, 100m, TipoErro.Nenhum);
+
+        // Act
+        var resultado = await _professorService.ObterDetalhesAtribuicaoAsync(turma.Id, ditado.Id, professor.Id);
+
+        // Assert
+        Assert.NotNull(resultado);
+        Assert.Single(resultado.ErrosPorPalavra);
+        
+        var palavraGato = resultado.ErrosPorPalavra[0];
+        Assert.Equal("gato", palavraGato.Palavra);
+        Assert.Equal(1, palavraGato.QuantidadeErros); // Considerou apenas 1ª tentativa (erro)
+        Assert.Equal(100.0m, palavraGato.PercentualErro); // 1 de 1 = 100%
+    }
+
+    [Fact]
+    public async Task ObterDetalhesAtribuicao_ErrosPorPalavra_SemAlunos_DeveRetornarZero()
+    {
+        // Arrange
+        var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var turma = await CriarTurmaAsync(professor.Id);
+        var ditado = await CriarDitadoAsync(professor.Id);
+        
+        // Adicionar mais uma lacuna
+        ditado.Segmentos.Add(new DitadoSegmento 
+        { 
+            DitadoId = ditado.Id, 
+            Ordem = 3, 
+            Tipo = TipoSegmento.Lacuna, 
+            Conteudo = "casa" 
+        });
+        await _context.SaveChangesAsync();
+
+        await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
+
+        // Act (nenhum aluno fez)
+        var resultado = await _professorService.ObterDetalhesAtribuicaoAsync(turma.Id, ditado.Id, professor.Id);
+
+        // Assert
+        Assert.NotNull(resultado);
+        Assert.Equal(2, resultado.ErrosPorPalavra.Count); // 2 lacunas
+
+        foreach (var erro in resultado.ErrosPorPalavra)
+        {
+            Assert.Equal(0, erro.QuantidadeErros);
+            Assert.Equal(0m, erro.PercentualErro);
+        }
+    }
+
+    [Fact]
+    public async Task ObterDetalhesAtribuicao_ErrosPorPalavra_OrdenadoPorOrdemDoDitado()
+    {
+        // Arrange
+        var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var turma = await CriarTurmaAsync(professor.Id);
+        var aluno = await CriarUsuarioAsync(TipoUsuario.Aluno);
+        await AdicionarAlunoNaTurmaAsync(aluno.Id, turma.Id);
+
+        var ditado = await CriarDitadoAsync(professor.Id);
+        
+        // Adicionar lacunas com ordens específicas
+        ditado.Segmentos.Add(new DitadoSegmento 
+        { 
+            DitadoId = ditado.Id, 
+            Ordem = 3, 
+            Tipo = TipoSegmento.Texto, 
+            Conteudo = " e o " 
+        });
+        ditado.Segmentos.Add(new DitadoSegmento 
+        { 
+            DitadoId = ditado.Id, 
+            Ordem = 4, 
+            Tipo = TipoSegmento.Lacuna, 
+            Conteudo = "cachorro" // Segunda lacuna
+        });
+        ditado.Segmentos.Add(new DitadoSegmento 
+        { 
+            DitadoId = ditado.Id, 
+            Ordem = 5, 
+            Tipo = TipoSegmento.Texto, 
+            Conteudo = " na " 
+        });
+        ditado.Segmentos.Add(new DitadoSegmento 
+        { 
+            DitadoId = ditado.Id, 
+            Ordem = 6, 
+            Tipo = TipoSegmento.Lacuna, 
+            Conteudo = "árvore" // Terceira lacuna
+        });
+        await _context.SaveChangesAsync();
+
+        await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
+    
+        await CriarRespostaDitadoAsync(ditado.Id, aluno.Id, 0m, 
+            TipoErro.Nenhum, 
+            TipoErro.Nenhum, 
+            TipoErro.Nenhum);
+
+        // Act
+        var resultado = await _professorService.ObterDetalhesAtribuicaoAsync(turma.Id, ditado.Id, professor.Id);
+
+        // Assert
+        Assert.NotNull(resultado);
+        Assert.Equal(3, resultado.ErrosPorPalavra.Count);
+        
+        // Verificar ordem
+        Assert.Equal("gato", resultado.ErrosPorPalavra[0].Palavra); // Ordem 2
+        Assert.Equal("cachorro", resultado.ErrosPorPalavra[1].Palavra); // Ordem 4
+        Assert.Equal("árvore", resultado.ErrosPorPalavra[2].Palavra); // Ordem 6
+    }
 }

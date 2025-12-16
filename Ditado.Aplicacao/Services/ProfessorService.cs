@@ -105,9 +105,10 @@ public class ProfessorService
         if (turma == null)
             return null;
 
-        // Buscar atribuição
+        // Buscar atribuição com segmentos do ditado
         var atribuicao = await _context.TurmaDitados
             .Include(td => td.Ditado)
+            .ThenInclude(d => d.Segmentos)
             .FirstOrDefaultAsync(td => td.TurmaId == turmaId && td.DitadoId == ditadoId);
 
         if (atribuicao == null)
@@ -123,6 +124,7 @@ public class ProfessorService
             .Where(r => r.DitadoId == ditadoId)
             .Where(r => alunosDaTurma.Select(a => a.Id).Contains(r.AlunoId))
             .Include(r => r.RespostasSegmentos)
+            .ThenInclude(rs => rs.Segmento)
             .GroupBy(r => r.AlunoId)
             .Select(g => g.OrderBy(r => r.DataRealizacao).First())
             .ToListAsync();
@@ -180,6 +182,32 @@ public class ProfessorService
             .OrderByDescending(e => e.Quantidade)
             .ToList();
 
+        // Calcular erros por palavra (apenas lacunas, 1ª tentativa)
+        var lacunas = atribuicao.Ditado.Segmentos
+            .Where(s => s.Tipo == TipoSegmento.Lacuna)
+            .OrderBy(s => s.Ordem)
+            .ToList();
+
+        var errosPorPalavra = new List<ErrosPorPalavraDto>();
+        var totalAlunosQueFizeram = primeiraTentativas.Count;
+
+        foreach (var lacuna in lacunas)
+        {
+            // Contar quantos alunos erraram esta palavra (1ª tentativa)
+            var quantidadeErros = primeiraTentativas
+                .SelectMany(r => r.RespostasSegmentos)
+                .Count(rs => rs.SegmentoId == lacuna.Id && !rs.Correto);
+
+            errosPorPalavra.Add(new ErrosPorPalavraDto
+            {
+                Palavra = lacuna.Conteudo,
+                QuantidadeErros = quantidadeErros,
+                PercentualErro = totalAlunosQueFizeram > 0
+                    ? Math.Round((decimal)quantidadeErros / totalAlunosQueFizeram * 100, 2)
+                    : 0
+            });
+        }
+
         // Estatísticas gerais
         var totalAlunos = alunosDaTurma.Count;
         var alunosQueFizeram = primeiraTentativas.Count;
@@ -205,7 +233,8 @@ public class ProfessorService
                 : 0,
             NotaMedia = notaMedia,
             Alunos = alunosResultado.OrderBy(a => a.Nome).ToList(),
-            ErrosPorTipo = todosErros
+            ErrosPorTipo = todosErros,
+            ErrosPorPalavra = errosPorPalavra
         };
     }
 }

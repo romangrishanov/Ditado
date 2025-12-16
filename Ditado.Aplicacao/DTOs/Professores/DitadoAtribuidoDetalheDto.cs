@@ -26,6 +26,9 @@ public class DitadoAtribuidoDetalheDto
     // Lista de Alunos
     public List<AlunoResultadoDto> Alunos { get; set; } = new();
     
-    // Gráfico de Erros
+    // Gráfico de Erros por Tipo
     public List<ErrosPorTipoDto> ErrosPorTipo { get; set; } = new();
+    
+    // Gráfico de Erros por Palavra (1ª tentativa)
+    public List<ErrosPorPalavraDto> ErrosPorPalavra { get; set; } = new();
 }
