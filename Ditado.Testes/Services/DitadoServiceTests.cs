@@ -546,4 +546,246 @@ public class DitadoServiceTests : IDisposable
 		var respostaSalva = await _context.RespostaDitados.FirstAsync();
 		Assert.Equal(aluno.Id, respostaSalva.AlunoId);
 	}
+
+	[Fact]
+	public async Task ObterDitadoCompletoPorId_ComIdValido_DeveRetornarDitadoCompleto()
+	{
+		// Arrange
+		var professor = await CriarUsuarioTesteAsync();
+		
+		var ditado = new Dominio.Entidades.Ditado
+		{
+			Titulo = "Ditado Completo",
+			Descricao = "Teste de visualização",
+			AudioLeitura = Convert.FromBase64String("SUQzAwAAAAAAJlRQRTEAAAAcAAAAU291bmRKYXk="),
+			AutorId = professor.Id,
+			Ativo = true
+		};
+		
+		// Adicionar segmentos
+		ditado.Segmentos.Add(new DitadoSegmento 
+		{ 
+			Ordem = 1, 
+			Tipo = TipoSegmento.Texto, 
+			Conteudo = "O " 
+		});
+		ditado.Segmentos.Add(new DitadoSegmento 
+		{ 
+			Ordem = 2, 
+			Tipo = TipoSegmento.Lacuna, 
+			Conteudo = "cachorro" 
+		});
+		ditado.Segmentos.Add(new DitadoSegmento 
+		{ 
+			Ordem = 3, 
+			Tipo = TipoSegmento.Texto, 
+			Conteudo = " late e o " 
+		});
+		ditado.Segmentos.Add(new DitadoSegmento 
+		{ 
+			Ordem = 4, 
+			Tipo = TipoSegmento.Lacuna, 
+			Conteudo = "gato" 
+		});
+		ditado.Segmentos.Add(new DitadoSegmento 
+		{ 
+			Ordem = 5, 
+			Tipo = TipoSegmento.Texto, 
+			Conteudo = " mia." 
+		});
+		
+		_context.Ditados.Add(ditado);
+		await _context.SaveChangesAsync();
+
+		// Act
+		var resultado = await _ditadoService.ObterDitadoCompletoPorIdAsync(ditado.Id);
+
+		// Assert
+		Assert.NotNull(resultado);
+		Assert.Equal(ditado.Id, resultado.Id);
+		Assert.Equal("Ditado Completo", resultado.Titulo);
+		Assert.Equal("Teste de visualização", resultado.Descricao);
+		Assert.StartsWith("data:audio/mpeg;base64,", resultado.AudioBase64);
+		Assert.Equal(5, resultado.Segmentos.Count); // "O ", [cachorro], " late e o ", [gato], " mia."
+		Assert.Equal(professor.Id, resultado.AutorId);
+		Assert.Equal("Professor Teste", resultado.AutorNome);
+
+		// Verificar que as lacunas têm o conteúdo visível
+		var lacunas = resultado.Segmentos.Where(s => s.Tipo == "Lacuna").ToList();
+		Assert.Equal(2, lacunas.Count);
+		Assert.Equal("cachorro", lacunas[0].Conteudo);
+		Assert.Equal("gato", lacunas[1].Conteudo);
+		
+		// Verificar ordem dos segmentos
+		Assert.Equal("O ", resultado.Segmentos[0].Conteudo);
+		Assert.Equal("cachorro", resultado.Segmentos[1].Conteudo);
+		Assert.Equal(" late e o ", resultado.Segmentos[2].Conteudo);
+		Assert.Equal("gato", resultado.Segmentos[3].Conteudo);
+		Assert.Equal(" mia.", resultado.Segmentos[4].Conteudo);
+	}
+
+	[Fact]
+	public async Task ObterDitadoCompletoPorId_ComIdInexistente_DeveRetornarNull()
+	{
+		// Act
+		var resultado = await _ditadoService.ObterDitadoCompletoPorIdAsync(99999);
+
+		// Assert
+		Assert.Null(resultado);
+	}
+
+	[Fact]
+	public async Task ObterDitadoCompletoPorId_DitadoInativo_DeveRetornarNull()
+	{
+		// Arrange
+		var professor = await CriarUsuarioTesteAsync();
+		
+		var ditado = new Dominio.Entidades.Ditado
+		{
+			Titulo = "Ditado Inativo",
+			AudioLeitura = new byte[] { 1, 2, 3 },
+			AutorId = professor.Id,
+			Ativo = false // Inativo
+		};
+		
+		ditado.Segmentos.Add(new DitadoSegmento 
+		{ 
+			Ordem = 1, 
+			Tipo = TipoSegmento.Lacuna, 
+			Conteudo = "teste" 
+		});
+		
+		_context.Ditados.Add(ditado);
+		await _context.SaveChangesAsync();
+
+		// Act
+		var resultado = await _ditadoService.ObterDitadoCompletoPorIdAsync(ditado.Id);
+
+		// Assert
+		Assert.Null(resultado); // Ditados inativos não devem ser retornados
+	}
+
+	[Fact]
+	public async Task ObterDitadoCompletoPorId_ComCategorias_DeveIncluirCategorias()
+	{
+		// Arrange
+		var professor = await CriarUsuarioTesteAsync();
+		var cat1 = new Categoria { Nome = "Ortografia" };
+		var cat2 = new Categoria { Nome = "5º Ano" };
+		_context.Categorias.AddRange(cat1, cat2);
+		await _context.SaveChangesAsync();
+		
+		var ditado = new Dominio.Entidades.Ditado
+		{
+			Titulo = "Ditado com Categorias",
+			AudioLeitura = new byte[] { 1, 2, 3 },
+			AutorId = professor.Id,
+			Ativo = true
+		};
+		
+		ditado.Segmentos.Add(new DitadoSegmento 
+		{ 
+			Ordem = 1, 
+			Tipo = TipoSegmento.Lacuna, 
+			Conteudo = "casa" 
+		});
+		
+		_context.Ditados.Add(ditado);
+		await _context.SaveChangesAsync();
+		
+		_context.DitadoCategorias.AddRange(
+			new DitadoCategoria { DitadoId = ditado.Id, CategoriaId = cat1.Id },
+			new DitadoCategoria { DitadoId = ditado.Id, CategoriaId = cat2.Id }
+		);
+		await _context.SaveChangesAsync();
+
+		// Act
+		var resultado = await _ditadoService.ObterDitadoCompletoPorIdAsync(ditado.Id);
+
+		// Assert
+		Assert.NotNull(resultado);
+		Assert.Equal(2, resultado.Categorias.Count);
+		Assert.Contains(resultado.Categorias, c => c.Nome == "Ortografia");
+		Assert.Contains(resultado.Categorias, c => c.Nome == "5º Ano");
+	}
+
+	[Fact]
+	public async Task ObterDitadoCompletoPorId_SemAutor_DeveRetornarAutorNomeNull()
+	{
+		// Arrange
+		var ditado = new Dominio.Entidades.Ditado
+		{
+			Titulo = "Ditado Sem Autor",
+			AudioLeitura = new byte[] { 1, 2, 3 },
+			AutorId = null, // Sem autor
+			Ativo = true
+		};
+		
+		ditado.Segmentos.Add(new DitadoSegmento 
+		{ 
+			Ordem = 1, 
+			Tipo = TipoSegmento.Lacuna, 
+			Conteudo = "teste" 
+		});
+		
+		_context.Ditados.Add(ditado);
+		await _context.SaveChangesAsync();
+
+		// Act
+		var resultado = await _ditadoService.ObterDitadoCompletoPorIdAsync(ditado.Id);
+
+		// Assert
+		Assert.NotNull(resultado);
+		Assert.Null(resultado.AutorId);
+		Assert.Null(resultado.AutorNome);
+	}
+
+	[Fact]
+	public async Task ObterDitadoCompletoPorId_ApenaLacunas_DeveRetornarTodasVisiveis()
+	{
+		// Arrange
+		var professor = await CriarUsuarioTesteAsync();
+		
+		var ditado = new Dominio.Entidades.Ditado
+		{
+			Titulo = "Ditado Só Lacunas",
+			AudioLeitura = new byte[] { 1, 2, 3 },
+			AutorId = professor.Id,
+			Ativo = true
+		};
+		
+		// Apenas lacunas, sem texto
+		ditado.Segmentos.Add(new DitadoSegmento 
+		{ 
+			Ordem = 1, 
+			Tipo = TipoSegmento.Lacuna, 
+			Conteudo = "primeira" 
+		});
+		ditado.Segmentos.Add(new DitadoSegmento 
+		{ 
+			Ordem = 2, 
+			Tipo = TipoSegmento.Lacuna, 
+			Conteudo = "segunda" 
+		});
+		ditado.Segmentos.Add(new DitadoSegmento 
+		{ 
+			Ordem = 3, 
+			Tipo = TipoSegmento.Lacuna, 
+			Conteudo = "terceira" 
+		});
+		
+		_context.Ditados.Add(ditado);
+		await _context.SaveChangesAsync();
+
+		// Act
+		var resultado = await _ditadoService.ObterDitadoCompletoPorIdAsync(ditado.Id);
+
+		// Assert
+		Assert.NotNull(resultado);
+		Assert.Equal(3, resultado.Segmentos.Count);
+		Assert.All(resultado.Segmentos, s => Assert.Equal("Lacuna", s.Tipo));
+		Assert.Equal("primeira", resultado.Segmentos[0].Conteudo);
+		Assert.Equal("segunda", resultado.Segmentos[1].Conteudo);
+		Assert.Equal("terceira", resultado.Segmentos[2].Conteudo);
+	}
 }

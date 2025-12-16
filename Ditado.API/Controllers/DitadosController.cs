@@ -347,4 +347,79 @@ public class DitadosController : ControllerBase
 			return Forbid();
 		}
 	}
+
+	/// <summary>
+	/// Obtém um ditado completo por ID (incluindo palavras das lacunas)
+	/// </summary>
+	/// <remarks>
+	/// Retorna a representação completa de um ditado, incluindo:
+	/// - Todos os metadados (título, descrição, autor, categorias)
+	/// - Áudio em base64
+	/// - **Todos os segmentos com conteúdo visível** (inclusive palavras das lacunas)
+	/// 
+	/// **Diferença do endpoint `/realizar`:**
+	/// - `/realizar`: Lacunas aparecem ocultas (sem a palavra)
+	/// - `/visualizar` (este): Lacunas aparecem com a palavra visível
+	/// 
+	/// **Acesso:**
+	/// - Professores/Administradores: Podem visualizar qualquer ditado ativo
+	/// - Alunos: Sem acesso
+	/// 
+	/// **Exemplo de resposta:**
+	/// 
+	///     {
+	///       "id": 10,
+	///       "titulo": "Ortografia Básica",
+	///       "descricao": "Ditado sobre uso de SS, S, Z",
+	///       "dataCriacao": "2024-12-01T10:00:00Z",
+	///       "autorId": 5,
+	///       "autorNome": "Prof. João Silva",
+	///       "categorias": [
+	///         { "id": 2, "nome": "Ortografia" },
+	///         { "id": 5, "nome": "5º Ano" }
+	///       ],
+	///       "audioBase64": "data:audio/mpeg;base64,SUQzAwAAAAAAJ...",
+	///       "segmentos": [
+	///         {
+	///           "id": 45,
+	///           "ordem": 1,
+	///           "tipo": "Texto",
+	///           "conteudo": "O "
+	///         },
+	///         {
+	///           "id": 46,
+	///           "ordem": 2,
+	///           "tipo": "Lacuna",
+	///           "conteudo": "cachorro"
+	///         },
+	///         {
+	///           "id": 47,
+	///           "ordem": 3,
+	///           "tipo": "Texto",
+	///           "conteudo": " late muito."
+	///         }
+	///       ]
+	///     }
+	/// </remarks>
+	/// <param name="id">ID do ditado</param>
+	/// <returns>Ditado completo com todas as informações</returns>
+	/// <response code="200">Ditado retornado com sucesso</response>
+	/// <response code="401">Não autenticado</response>
+	/// <response code="403">Sem permissão (apenas Professor e Administrador)</response>
+	/// <response code="404">Ditado não encontrado</response>
+	[HttpGet("{id}/visualizar")]
+	[Authorize(Roles = "Administrador,Professor")]
+	[ProducesResponseType(typeof(DitadoCompletoDto), StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(StatusCodes.Status403Forbidden)]
+	[ProducesResponseType(StatusCodes.Status404NotFound)]
+	public async Task<ActionResult<DitadoCompletoDto>> ObterDitadoCompleto(int id)
+	{
+		var ditado = await _ditadoService.ObterDitadoCompletoPorIdAsync(id);
+
+		if (ditado == null)
+			return NotFound(new { mensagem = "Ditado não encontrado." });
+
+		return Ok(ditado);
+	}
 }

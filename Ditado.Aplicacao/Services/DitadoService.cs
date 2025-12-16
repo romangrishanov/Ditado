@@ -652,4 +652,51 @@ public class DitadoService
 
 		return texto;
 	}
+
+	/// <summary>
+	/// Obtém um ditado completo por ID (com palavras das lacunas visíveis)
+	/// Usado para visualização por professores/administradores
+	/// </summary>
+	public async Task<DitadoCompletoDto?> ObterDitadoCompletoPorIdAsync(int id)
+	{
+		var ditado = await _context.Ditados
+			.Include(d => d.Segmentos)
+			.Include(d => d.Autor)
+			.Include(d => d.DitadoCategorias)
+			.ThenInclude(dc => dc.Categoria)
+			.FirstOrDefaultAsync(d => d.Id == id && d.Ativo);
+
+		if (ditado == null)
+			return null;
+
+		var audioBase64 = $"data:{Dominio.Entidades.Ditado.AudioMimeTypePadrao};base64,{Convert.ToBase64String(ditado.AudioLeitura)}";
+
+		return new DitadoCompletoDto
+		{
+			Id = ditado.Id,
+			Titulo = ditado.Titulo,
+			Descricao = ditado.Descricao,
+			DataCriacao = ditado.DataCriacao,
+			AutorId = ditado.AutorId,
+			AutorNome = ditado.Autor?.Nome,
+			Categorias = ditado.DitadoCategorias
+				.Select(dc => new CategoriaSimplificadaDto
+				{
+					Id = dc.Categoria.Id,
+					Nome = dc.Categoria.Nome
+				})
+				.ToList(),
+			AudioBase64 = audioBase64,
+			Segmentos = ditado.Segmentos
+				.OrderBy(s => s.Ordem)
+				.Select(s => new SegmentoCompletoDto
+				{
+					Id = s.Id,
+					Ordem = s.Ordem,
+					Tipo = s.Tipo.ToString(),
+					Conteudo = s.Conteudo // Sempre visível (inclusive lacunas)
+				})
+				.ToList()
+		};
+	}
 }
